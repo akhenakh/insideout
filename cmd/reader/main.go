@@ -2,156 +2,112 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
-	"os"
 	"runtime"
-	"time"
 
-	"github.com/akhenakh/insidetree"
-	"github.com/akhenakh/oureadb/index/geodata"
-	"github.com/fxamacker/cbor"
+	"github.com/bluele/gcache"
 	"github.com/golang/geo/s2"
+	"github.com/namsral/flag"
+	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/filter"
+	"github.com/syndtr/goleveldb/leveldb/opt"
+
+	"github.com/akhenakh/insideout"
+	"github.com/akhenakh/insideout/index/shapeindex"
+	"github.com/akhenakh/insideout/index/treeindex"
 )
 
-type SIndex struct {
-	Properties map[string]interface{}
-	CellsIn    []s2.CellID
-	CellsOut   []s2.CellID
-	Coords     []float64
-}
+var (
+	version = "no version from LDFLAGS"
 
-type Feature struct {
-	*s2.Loop
-	Properties map[string]interface{}
-}
+	cacheCount = flag.Int("cacheCount", 100, "Features count to cache")
+	dbPath     = flag.String("dbPath", "out.db", "Database path")
+
+	stopOnFirstFound = flag.Bool("stopOnFirstFound", false, "Stop in first feature found")
+	strategy         = flag.String("strategy", "insidetree", "Strategy to use: insidetree|shapeindex|disk")
+)
 
 func main() {
+	flag.Parse()
+
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
-	itree := insidetree.NewTree()
-	otree := insidetree.NewTree()
-	mprop := make(map[int32]*Feature)
+	o := &opt.Options{
+		Filter:   filter.NewBloomFilter(10),
+		ReadOnly: true,
+	}
 
-	in, err := os.Open("../../out.data")
+	db, err := leveldb.OpenFile(*dbPath, o)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer in.Close()
+	defer db.Close()
 
-	dec := cbor.NewDecoder(in)
+	// cache
+	gc := gcache.New(*cacheCount).ARC().LoaderFunc(func(key interface{}) (interface{}, error) {
+		id := key.(uint32)
+		return insideout.LoadFeature(db, id)
+	}).Build()
 
-	idx := &SIndex{}
-	var current int32
-	for {
+	var idx insideout.Index
 
-		if err = dec.Decode(idx); err != nil {
-			if err != io.EOF {
+	switch *strategy {
+	case "insidetree":
+		idx = treeindex.New(treeindex.Options{StopOnInsideFound: *stopOnFirstFound})
+
+		f := func(si *insideout.SIndex, id uint32) {
+			err := idx.Add(si, id)
+			if err != nil {
 				log.Fatal(err)
 			}
-			break
 		}
-		//fmt.Println(idx.Properties)
-
-		l := geodata.LoopFromCoordinates(idx.Coords)
-
-		//f := &Feature{Properties: idx.Properties}
-		f := &Feature{Properties: idx.Properties, Loop: l}
-		mprop[current] = f
-
-		for _, c := range idx.CellsIn {
-			itree.Index(c, current)
+		err := insideout.LoadAllSIndex(db, f)
+		if err != nil {
+			log.Fatal(err)
 		}
-		for _, c := range idx.CellsOut {
-			otree.Index(c, current)
+	case "shapeindex":
+		idx = shapeindex.New()
+
+		f := func(si *insideout.SIndex, id uint32) {
+			err := idx.Add(si, id)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
-		current++
+		err := insideout.LoadAllSIndex(db, f)
+		if err != nil {
+			log.Fatal(err)
+		}
+	default:
+		log.Fatal("unknown strategy ", *strategy)
 	}
 
-	fmt.Println("loaded", current)
-
-	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-
-	lat := 47.8
-	t := time.Now()
-
-	pipCount := 0
-
-	for i := 0; i < 10_000; i++ {
-		p := s2.PointFromLatLng(s2.LatLngFromDegrees(lat-(float64(i)/2_000), 2.2))
-
-		c := s2.CellFromPoint(p).ID()
-		res := itree.Stab(c)
-		if len(res) > 0 {
-			continue
+	idxResp := idx.Stab(48.8, 2.2)
+	for _, fid := range idxResp.IDsInside {
+		fi, err := gc.Get(fid.ID)
+		if err != nil {
+			log.Fatal(err)
 		}
+		f := fi.(*insideout.Feature)
+		log.Println("Found inside", f.Properties, "loop #", fid.Pos)
+	}
 
-		res = otree.Stab(c)
-		if len(res) == 0 {
-			fmt.Println("no solution otree", c)
-			continue
+	for _, fid := range idxResp.IDsMayBeInside {
+		fi, err := gc.Get(fid.ID)
+		if err != nil {
+			log.Fatal(err)
 		}
-
-		if len(res) > 0 {
-			var pipres []int32
-			for _, id := range res {
-				// do pip
-				idx := id.(int32)
-				//s := sindex.Shape(idx)
-				l := mprop[idx]
-				//l := s.(*Feature)
-
-				//fmt.Println("LOOP TESTING", idx, c, res, lat-(1.0/float64(i)), 2.2)
-				pipCount++
-				if l.ContainsPoint(p) {
-					pipres = append(pipres, id.(int32))
-				}
-			}
-			if len(pipres) == 0 {
-				fmt.Println("no solution", c)
-				continue
-			}
-			//fmt.Println("from PIP", pipres)
+		f := fi.(*insideout.Feature)
+		log.Println("Testing PIP outside", f.Properties, "loop #", fid.Pos)
+		l := f.Loops[fid.Pos]
+		if l.ContainsPoint(s2.PointFromLatLng(s2.LatLngFromDegrees(48.8, 2.2))) {
+			log.Println("Found in PIP outside", f.Properties, "loop #", fid.Pos)
 		}
 	}
-	// 	c := s2.CellFromPoint(p).ID()
-	// 	res := itree.Stab(c)
-	// 	//
-	// 	// for _, prop := range res {
-	// 	// 	fmt.Println("found", prop)
-	// 	// }
-	// 	if len(res) == 0 {
-	// 		res = otree.Stab(c)
-	// 		if len(res) == 0 {
-	// 			// fmt.Println("no solution", c)
-	// 		}
-	// 		if len(res) > 0 {
-	// 			var pipres []uint
-	// 			for _, id := range res {
-	// 				// do pip
-	// 				idx := mprop[id.(uint)]
-	//
-	// 				// fmt.Println("LOOP", idx.Properties, "TESTING", c, res, lat-(1.0/float64(i)), 2.2)
-	// 				if idx.Loop != nil && idx.Loop.ContainsPoint(p) {
-	// 					pipres = append(pipres, id.(uint))
-	// 				}
-	//
-	// 			}
-	// 			// fmt.Println("from PIP", pipres)
-	// 		}
-	//
-	// 	} else {
-	// 		// for _, id := range res {
-	// 		// 	fmt.Println("from inside", id.(uint))
-	// 		// }
-	// 	}
-	// }
-
-	fmt.Println(time.Since(t), "pip", pipCount)
 
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
