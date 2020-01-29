@@ -15,6 +15,7 @@ type Index struct {
 	opts Options
 }
 
+// Options for the insidetree Index
 type Options struct {
 	// StopOnInside, if you know your data does not overlap (eg countries) set it to true
 	// so it won't go looking further and response faster
@@ -29,7 +30,7 @@ func New(opts Options) *Index {
 	}
 }
 
-func (idx *Index) Add(si *insideout.SIndex, id uint32) error {
+func (idx *Index) Add(si *insideout.FeatureStorage, id uint32) error {
 	for i, cu := range si.CellsIn {
 		for _, c := range cu {
 			idx.itree.Index(c, insideout.FeatureIndexResponse{

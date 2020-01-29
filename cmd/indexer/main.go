@@ -4,15 +4,18 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"log"
+	"fmt"
+	stdlog "log"
 	"os"
+	"path"
+	"time"
 
 	"github.com/fxamacker/cbor"
+	log "github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/golang/geo/s2"
 	"github.com/namsral/flag"
 	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/filter"
-	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"github.com/twpayne/go-geom/encoding/geojson"
 
@@ -52,6 +55,7 @@ import (
 29 	 	2.95 			cm2 	  	17 mm 	18 mm
 30 	 	0.74 			cm2 	  	8 mm 	9 mm
 */
+const appName = "indexer"
 
 var (
 	version = "no version from LDFLAGS"
@@ -71,33 +75,41 @@ var (
 func main() {
 	flag.Parse()
 
+	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stdout))
+	logger = log.With(logger, "caller", log.Caller(5), "ts", log.DefaultTimestampUTC)
+	logger = log.With(logger, "app", appName)
+	logger = level.NewFilter(logger, level.AllowAll())
+
+	stdlog.SetOutput(log.NewStdlibAdapter(logger))
+
+	level.Info(logger).Log("msg", "Starting app", "version", version)
+
 	var fc geojson.FeatureCollection
 
 	// reading GeoJSON
 	file, err := os.Open(*filePath)
 	if err != nil {
-		log.Fatal(err)
+		level.Error(logger).Log("msg", "failed to open GeoJSON", "error", err, "file_path", *filePath)
+		os.Exit(2)
 	}
 	defer file.Close()
 
 	decoder := json.NewDecoder(file)
 	err = decoder.Decode(&fc)
 	if err != nil {
-		log.Fatal(err)
+		level.Error(logger).Log("msg", "failed to decode GeoJSON", "error", err, "file_path", *filePath)
+		os.Exit(2)
 	}
+
+	storage, clean, err := insideout.NewLevelDBStorage(*dbPath, logger)
+	if err != nil {
+		level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
+		os.Exit(2)
+	}
+	defer clean()
 
 	icoverer := &s2.RegionCoverer{MinLevel: *insideMinLevelCover, MaxLevel: *insideMaxLevelCover, MaxCells: *insideMaxCellsCover}
 	ocoverer := &s2.RegionCoverer{MinLevel: *outsideMinLevelCover, MaxLevel: *outsideMaxLevelCover, MaxCells: *outsideMaxCellsCover}
-
-	// Creating DB
-	o := &opt.Options{
-		Filter: filter.NewBloomFilter(10),
-	}
-	db, err := leveldb.OpenFile(*dbPath, o)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
 
 	var count uint32
 
@@ -105,14 +117,14 @@ func main() {
 		// cover inside
 		cui, err := insideout.GeoJSONCoverCellUnion(f, icoverer, true)
 		if err != nil {
-			log.Println(err, f.Properties)
+			level.Warn(logger).Log("msg", "error covering inside", "error", err, "feature_properties", f.Properties)
 			continue
 		}
 
 		// cover outside
 		cuo, err := insideout.GeoJSONCoverCellUnion(f, ocoverer, false)
 		if err != nil {
-			log.Println(err, f.Properties)
+			level.Warn(logger).Log("msg", "error covering outside", "error", err, "feature_properties", f.Properties)
 			continue
 		}
 
@@ -121,7 +133,11 @@ func main() {
 		// store interior cover
 		for fi, cu := range cui {
 			if *warningCellsCover != 0 && len(cu) > *warningCellsCover {
-				log.Printf("inside cover too big %d polygon #%d %s\n", len(cui), fi, f.Properties)
+				level.Warn(logger).Log(
+					"msg", fmt.Sprintf("inside cover too big%d polygon #%d %s", len(cui), fi, f.Properties),
+					"error", err, "feature_properties", f.Properties,
+				)
+
 				continue
 			}
 			for _, c := range cu {
@@ -130,10 +146,11 @@ func main() {
 				binary.BigEndian.PutUint32(v, count)
 				binary.BigEndian.PutUint16(v, uint16(fi))
 				// append to existing if any
-				ev, err := db.Get(insideout.InsideKey(c), nil)
+				ev, err := storage.Get(insideout.InsideKey(c), nil)
 				if err != nil {
 					if err != leveldb.ErrNotFound {
-						log.Fatal(err)
+						level.Error(logger).Log("msg", "failed reading DB", "error", err, "db_path", *dbPath)
+						os.Exit(2)
 					}
 				}
 				v = append(v, ev...)
@@ -144,7 +161,10 @@ func main() {
 		// store outside cover
 		for fi, cu := range cuo {
 			if *warningCellsCover != 0 && len(cu) > *warningCellsCover {
-				log.Printf("outside cover too big %d polygon #%d %s\n", len(cui), fi, f.Properties)
+				level.Warn(logger).Log(
+					"msg", fmt.Sprintf("outisde cover too big%d polygon #%d %s", len(cui), fi, f.Properties),
+					"error", err, "feature_properties", f.Properties,
+				)
 				continue
 			}
 			for _, c := range cu {
@@ -158,10 +178,11 @@ func main() {
 				binary.BigEndian.PutUint32(v, count)
 				binary.BigEndian.PutUint16(v, uint16(fi))
 				// append to existing if any
-				ev, err := db.Get(insideout.OutsideKey(c), nil)
+				ev, err := storage.Get(insideout.OutsideKey(c), nil)
 				if err != nil {
 					if err != leveldb.ErrNotFound {
-						log.Fatal(err)
+						level.Error(logger).Log("msg", "failed reading DB", "error", err, "db_path", *dbPath)
+						os.Exit(2)
 					}
 				}
 				v = append(v, ev...)
@@ -170,23 +191,32 @@ func main() {
 		}
 		lb, err := insideout.GeoJSONEncodeLoops(f)
 		if err != nil {
-			log.Fatal(err)
+			level.Error(logger).Log("msg", "can't encode loop", "error", err)
+			os.Exit(2)
 		}
 
 		b := new(bytes.Buffer)
 		enc := cbor.NewEncoder(b, cbor.CanonicalEncOptions())
 
-		i := &insideout.SIndex{Properties: f.Properties, LoopsBytes: lb, CellsIn: cui}
+		i := &insideout.FeatureStorage{Properties: f.Properties, LoopsBytes: lb, CellsIn: cui}
 		if err := enc.Encode(i); err != nil {
-			log.Fatal(err)
+			level.Error(logger).Log("msg", "can't encode FeatureStorage", "error", err)
+			os.Exit(2)
 		}
+
+		level.Debug(logger).Log(
+			"msg", "stored FeatureStorage",
+			"feature_properties", f.Properties,
+			"loop_count", len(i.LoopsBytes),
+		)
 
 		// store feature
 		batch.Put(insideout.FeatureKey(count), b.Bytes())
 
-		err = db.Write(batch, nil)
+		err = storage.Write(batch, nil)
 		if err != nil {
-			log.Fatal(err)
+			level.Error(logger).Log("msg", "failed writing batch to DB", "error", err, "db_path", *dbPath)
+			os.Exit(2)
 		}
 
 		//log.Println(f.Properties, len(cui), len(cuo))
@@ -194,11 +224,30 @@ func main() {
 		count++
 	}
 
-	log.Println("Indexed", count, "features")
+	infoBytes := new(bytes.Buffer)
 
-	err = db.CompactRange(util.Range{})
-	if err != nil {
-		log.Fatal(err)
+	infos := &insideout.IndexInfos{
+		Filename:       path.Base(*filePath),
+		IndexTime:      time.Now(),
+		IndexerVersion: version,
+		FeatureCount:   count,
 	}
 
+	enc := cbor.NewEncoder(infoBytes, cbor.CanonicalEncOptions())
+	if err := enc.Encode(infos); err != nil {
+		level.Error(logger).Log("msg", "failed encoding IndexInfos", "error", err)
+		os.Exit(2)
+	}
+
+	if err := storage.Put(insideout.InfoKey(), infoBytes.Bytes(), nil); err != nil {
+		level.Error(logger).Log("msg", "failed writing IndexInfos to DB", "error", err, "db_path", *dbPath)
+		os.Exit(2)
+	}
+
+	level.Info(logger).Log("msg", "stored index_infos", "feature_count", infos.FeatureCount)
+
+	if err := storage.CompactRange(util.Range{}); err != nil {
+		level.Error(logger).Log("msg", "failed compacting DB", "error", err, "db_path", *dbPath)
+		os.Exit(2)
+	}
 }

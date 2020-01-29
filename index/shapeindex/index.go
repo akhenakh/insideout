@@ -26,7 +26,7 @@ func New() *Index {
 	}
 }
 
-func (idx *Index) Add(si *insideout.SIndex, id uint32) error {
+func (idx *Index) Add(si *insideout.FeatureStorage, id uint32) error {
 	for i := 0; i < len(si.LoopsBytes); i++ {
 		l := &s2.Loop{}
 		if err := l.Decode(bytes.NewReader(si.LoopsBytes[i])); err != nil {

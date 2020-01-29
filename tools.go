@@ -14,6 +14,7 @@ const (
 	insidePrefix  = 'I'
 	outsidePrefix = 'O'
 	featurePrefix = 'F'
+	infoKey       = 'i'
 )
 
 // GeoJSONCoverCellUnion generates an s2 cover normalized
@@ -142,4 +143,8 @@ func FeatureKey(id uint32) []byte {
 	k[0] = featurePrefix
 	binary.BigEndian.PutUint32(k[1:], id)
 	return k
+}
+
+func InfoKey() []byte {
+	return []byte{infoKey}
 }

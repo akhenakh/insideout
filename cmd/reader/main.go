@@ -2,22 +2,24 @@ package main
 
 import (
 	"fmt"
-	"log"
+	stdlog "log"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 	"runtime"
 
 	"github.com/bluele/gcache"
+	log "github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/golang/geo/s2"
 	"github.com/namsral/flag"
-	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/filter"
-	"github.com/syndtr/goleveldb/leveldb/opt"
 
 	"github.com/akhenakh/insideout"
 	"github.com/akhenakh/insideout/index/shapeindex"
 	"github.com/akhenakh/insideout/index/treeindex"
 )
+
+const appName = "reader"
 
 var (
 	version = "no version from LDFLAGS"
@@ -32,25 +34,38 @@ var (
 func main() {
 	flag.Parse()
 
+	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stdout))
+	logger = log.With(logger, "caller", log.Caller(5), "ts", log.DefaultTimestampUTC)
+	logger = log.With(logger, "app", appName)
+	logger = level.NewFilter(logger, level.AllowAll())
+
+	stdlog.SetOutput(log.NewStdlibAdapter(logger))
+
+	level.Info(logger).Log("msg", "Starting app", "version", version)
+
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
+		stdlog.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
-	o := &opt.Options{
-		Filter:   filter.NewBloomFilter(10),
-		ReadOnly: true,
+	storage, clean, err := insideout.NewLevelDBStorage(*dbPath, logger)
+	if err != nil {
+		level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
+		os.Exit(2)
+	}
+	defer clean()
+
+	infos, err := storage.LoadIndexInfos()
+	if err != nil {
+		level.Error(logger).Log("msg", "failed to read infos", "error", err)
+		os.Exit(2)
 	}
 
-	db, err := leveldb.OpenFile(*dbPath, o)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
+	level.Info(logger).Log("msg", "read index_infos", "feature_count", infos.FeatureCount)
 
 	// cache
 	gc := gcache.New(*cacheCount).ARC().LoaderFunc(func(key interface{}) (interface{}, error) {
 		id := key.(uint32)
-		return insideout.LoadFeature(db, id)
+		return storage.LoadFeature(id)
 	}).Build()
 
 	var idx insideout.Index
@@ -58,54 +73,39 @@ func main() {
 	switch *strategy {
 	case "insidetree":
 		idx = treeindex.New(treeindex.Options{StopOnInsideFound: *stopOnFirstFound})
-
-		f := func(si *insideout.SIndex, id uint32) {
-			err := idx.Add(si, id)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-		err := insideout.LoadAllSIndex(db, f)
-		if err != nil {
-			log.Fatal(err)
-		}
 	case "shapeindex":
 		idx = shapeindex.New()
-
-		f := func(si *insideout.SIndex, id uint32) {
-			err := idx.Add(si, id)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-		err := insideout.LoadAllSIndex(db, f)
-		if err != nil {
-			log.Fatal(err)
-		}
 	default:
-		log.Fatal("unknown strategy ", *strategy)
+		level.Error(logger).Log("msg", "unknown strategy", "error", err, "strategy", *strategy)
+		os.Exit(2)
 	}
 
-	idxResp := idx.Stab(48.8, 2.2)
+	err = storage.LoadAllFeatures(idx)
+	if err != nil {
+		level.Error(logger).Log("msg", "failed to load feature from storage", "error", err, "strategy", *strategy)
+		os.Exit(2)
+	}
+
+	idxResp := idx.Stab(48.864716, 2.349014)
 	for _, fid := range idxResp.IDsInside {
 		fi, err := gc.Get(fid.ID)
 		if err != nil {
-			log.Fatal(err)
+			stdlog.Fatal(err)
 		}
 		f := fi.(*insideout.Feature)
-		log.Println("Found inside", f.Properties, "loop #", fid.Pos)
+		stdlog.Println("Found inside ID", fid.ID, f.Properties, "loop #", fid.Pos)
 	}
 
 	for _, fid := range idxResp.IDsMayBeInside {
 		fi, err := gc.Get(fid.ID)
 		if err != nil {
-			log.Fatal(err)
+			stdlog.Fatal(err)
 		}
 		f := fi.(*insideout.Feature)
-		log.Println("Testing PIP outside", f.Properties, "loop #", fid.Pos)
+		stdlog.Println("Testing PIP outside ID", fid.ID, f.Properties, "loop #", fid.Pos)
 		l := f.Loops[fid.Pos]
-		if l.ContainsPoint(s2.PointFromLatLng(s2.LatLngFromDegrees(48.8, 2.2))) {
-			log.Println("Found in PIP outside", f.Properties, "loop #", fid.Pos)
+		if l.ContainsPoint(s2.PointFromLatLng(s2.LatLngFromDegrees(48.864716, 2.349014))) {
+			stdlog.Println("Found in PIP outside ID", fid.ID, f.Properties, "loop #", fid.Pos)
 		}
 	}
 
