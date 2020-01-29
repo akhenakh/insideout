@@ -203,23 +203,39 @@ func main() {
 			os.Exit(2)
 		}
 
+		// store feature
 		b := new(bytes.Buffer)
 		enc := cbor.NewEncoder(b, cbor.CanonicalEncOptions())
 
-		i := &insideout.FeatureStorage{Properties: f.Properties, LoopsBytes: lb, CellsIn: cui}
-		if err := enc.Encode(i); err != nil {
+		// TODO: filter cuo cui[fi].ContainsCellID(c)
+		fs := &insideout.FeatureStorage{Properties: f.Properties, LoopsBytes: lb}
+		if err := enc.Encode(fs); err != nil {
 			level.Error(logger).Log("msg", "can't encode FeatureStorage", "error", err)
 			os.Exit(2)
 		}
 
+		batch.Put(insideout.FeatureKey(count), b.Bytes())
+
+		// store cells for tree
+		b = new(bytes.Buffer)
+		enc = cbor.NewEncoder(b, cbor.CanonicalEncOptions())
+		cs := &insideout.CellsStorage{
+			CellsIn:  cui,
+			CellsOut: cuo,
+		}
+
+		if err := enc.Encode(cs); err != nil {
+			level.Error(logger).Log("msg", "can't encode CellsStorage", "error", err)
+			os.Exit(2)
+		}
+
+		batch.Put(insideout.CellKey(count), b.Bytes())
+
 		level.Debug(logger).Log(
 			"msg", "stored FeatureStorage",
 			"feature_properties", f.Properties,
-			"loop_count", len(i.LoopsBytes),
+			"loop_count", len(fs.LoopsBytes),
 		)
-
-		// store feature
-		batch.Put(insideout.FeatureKey(count), b.Bytes())
 
 		err = storage.Write(batch, nil)
 		if err != nil {

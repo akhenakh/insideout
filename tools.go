@@ -14,7 +14,12 @@ const (
 	insidePrefix  = 'I'
 	outsidePrefix = 'O'
 	featurePrefix = 'F'
+	cellPrefix    = 'C'
 	infoKey       = 'i'
+
+	InsideTreeStrategy = "insidetree"
+	DBStrategy         = "db"
+	ShapeIndex         = "shapeindex"
 )
 
 // GeoJSONCoverCellUnion generates an s2 cover normalized
@@ -141,6 +146,13 @@ func OutsideKey(c s2.CellID) []byte {
 func FeatureKey(id uint32) []byte {
 	k := make([]byte, 1+4)
 	k[0] = featurePrefix
+	binary.BigEndian.PutUint32(k[1:], id)
+	return k
+}
+
+func CellKey(id uint32) []byte {
+	k := make([]byte, 1+4)
+	k[0] = cellPrefix
 	binary.BigEndian.PutUint32(k[1:], id)
 	return k
 }

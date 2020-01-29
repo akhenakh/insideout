@@ -30,8 +30,8 @@ func New(opts Options) *Index {
 	}
 }
 
-func (idx *Index) Add(si *insideout.FeatureStorage, id uint32) error {
-	for i, cu := range si.CellsIn {
+func (idx *Index) Add(cs *insideout.CellsStorage, id uint32) {
+	for i, cu := range cs.CellsIn {
 		for _, c := range cu {
 			idx.itree.Index(c, insideout.FeatureIndexResponse{
 				ID:  id,
@@ -39,7 +39,7 @@ func (idx *Index) Add(si *insideout.FeatureStorage, id uint32) error {
 			})
 		}
 	}
-	for i, cu := range si.CellsOut {
+	for i, cu := range cs.CellsOut {
 		for _, c := range cu {
 			idx.otree.Index(c, insideout.FeatureIndexResponse{
 				ID:  id,
@@ -47,11 +47,9 @@ func (idx *Index) Add(si *insideout.FeatureStorage, id uint32) error {
 			})
 		}
 	}
-
-	return nil
 }
 
-// Stab returns polygon's ids we are inside and polygon's ids we may be inside
+// Stab returns polygon's ids containing lat lng and polygon's ids that may be
 func (idx *Index) Stab(lat, lng float64) insideout.IndexResponse {
 	var idxResp insideout.IndexResponse
 
@@ -75,7 +73,16 @@ func (idx *Index) Stab(lat, lng float64) insideout.IndexResponse {
 
 	for _, r := range res {
 		fres := r.(insideout.FeatureIndexResponse)
-		idxResp.IDsMayBeInside = append(idxResp.IDsMayBeInside, fres)
+		// remove any answer matching inside
+		found := false
+		for _, ires := range idxResp.IDsInside {
+			if ires.ID == fres.ID {
+				found = true
+			}
+		}
+		if !found {
+			idxResp.IDsMayBeInside = append(idxResp.IDsMayBeInside, fres)
+		}
 	}
 	return idxResp
 }

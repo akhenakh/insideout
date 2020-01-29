@@ -1,22 +1,32 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	stdlog "log"
+	"net"
+	"net/http"
 
-	//_ "net/http/pprof"
+	_ "net/http/pprof"
 	"os"
+	"os/signal"
 	"runtime"
+	"syscall"
+	"time"
 
-	"github.com/bluele/gcache"
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/golang/geo/s2"
+	"github.com/gorilla/mux"
 	"github.com/namsral/flag"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/akhenakh/insideout"
-	"github.com/akhenakh/insideout/index/shapeindex"
-	"github.com/akhenakh/insideout/index/treeindex"
+	"github.com/akhenakh/insideout/server"
+	"github.com/akhenakh/insideout/server/debug"
 )
 
 const appName = "reader"
@@ -24,11 +34,20 @@ const appName = "reader"
 var (
 	version = "no version from LDFLAGS"
 
-	cacheCount = flag.Int("cacheCount", 100, "Features count to cache")
-	dbPath     = flag.String("dbPath", "out.db", "Database path")
+	cacheCount      = flag.Int("cacheCount", 100, "Features count to cache")
+	dbPath          = flag.String("dbPath", "out.db", "Database path")
+	httpMetricsPort = flag.Int("httpMetricsPort", 8088, "http port")
+	httpAPIPort     = flag.Int("httpAPIPort", 9201, "http API port")
+	grpcPort        = flag.Int("grpcPort", 9200, "gRPC API port")
+	healthPort      = flag.Int("healthPort", 6666, "grpc health port")
 
 	stopOnFirstFound = flag.Bool("stopOnFirstFound", false, "Stop in first feature found")
-	strategy         = flag.String("strategy", "insidetree", "Strategy to use: insidetree|shapeindex|disk")
+	strategy         = flag.String("strategy", insideout.InsideTreeStrategy, "Strategy to use: insidetree|shapeindex|db")
+
+	httpServer        *http.Server
+	grpcHealthServer  *grpc.Server
+	grpcServer        *grpc.Server
+	httpMetricsServer *http.Server
 )
 
 func main() {
@@ -41,11 +60,29 @@ func main() {
 
 	stdlog.SetOutput(log.NewStdlibAdapter(logger))
 
+	switch *strategy {
+	case insideout.InsideTreeStrategy, insideout.DBStrategy, insideout.ShapeIndex:
+	default:
+		level.Error(logger).Log("msg", "unknown strategy", "strategy", *strategy)
+		os.Exit(2)
+	}
+
 	level.Info(logger).Log("msg", "Starting app", "version", version)
 
-	// go func() {
-	// 	stdlog.Println(http.ListenAndServe("localhost:6060", nil))
-	// }()
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// catch termination
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(interrupt)
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	go func() {
+		stdlog.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	storage, clean, err := insideout.NewLevelDBStorage(*dbPath, logger)
 	if err != nil {
@@ -53,6 +90,72 @@ func main() {
 		os.Exit(2)
 	}
 	defer clean()
+
+	// gRPC Health Server
+	healthServer := health.NewServer()
+	g.Go(func() error {
+		grpcHealthServer = grpc.NewServer()
+
+		healthpb.RegisterHealthServer(grpcHealthServer, healthServer)
+
+		haddr := fmt.Sprintf(":%d", *healthPort)
+		hln, err := net.Listen("tcp", haddr)
+		if err != nil {
+			level.Error(logger).Log("msg", "gRPC Health server: failed to listen", "error", err)
+			os.Exit(2)
+		}
+		level.Info(logger).Log("msg", fmt.Sprintf("gRPC health server listening at %s", haddr))
+		return grpcHealthServer.Serve(hln)
+	})
+
+	// server
+	s := server.New(storage, logger, healthServer,
+		server.Options{
+			StopOnFirstFound: *stopOnFirstFound,
+			CacheCount:       *cacheCount,
+			Strategy:         *strategy,
+		})
+
+	// web server metrics
+	g.Go(func() error {
+		httpMetricsServer = &http.Server{
+			Addr:         fmt.Sprintf(":%d", *httpMetricsPort),
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+		}
+		level.Info(logger).Log("msg", fmt.Sprintf("HTTP Metrics server listening at :%d", *httpMetricsPort))
+
+		// Register Prometheus metrics handler.
+		http.Handle("/metrics", promhttp.Handler())
+
+		if err := httpMetricsServer.ListenAndServe(); err != http.ErrServerClosed {
+			return err
+		}
+
+		return nil
+	})
+
+	// API web server
+	g.Go(func() error {
+		// web server
+
+		r := mux.NewRouter()
+		r.HandleFunc("/api/debug/cells", debug.S2CellQueryHandler)
+
+		httpServer = &http.Server{
+			Addr:         fmt.Sprintf(":%d", *httpAPIPort),
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			Handler:      r,
+		}
+		level.Info(logger).Log("msg", fmt.Sprintf("HTTP API server listening at :%d", *httpAPIPort))
+
+		if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
+			return err
+		}
+
+		return nil
+	})
 
 	infos, err := storage.LoadIndexInfos()
 	if err != nil {
@@ -62,51 +165,49 @@ func main() {
 
 	level.Info(logger).Log("msg", "read index_infos", "feature_count", infos.FeatureCount)
 
-	// cache
-	gc := gcache.New(*cacheCount).ARC().LoaderFunc(func(key interface{}) (interface{}, error) {
-		id := key.(uint32)
-		return storage.LoadFeature(id)
-	}).Build()
+	//TODO: perform a query first for shapeindex to be ready
 
-	var idx insideout.Index
+	healthServer.SetServingStatus(fmt.Sprintf("grpc.health.v1.%s", appName), healthpb.HealthCheckResponse_SERVING)
+	level.Info(logger).Log("msg", "serving status to SERVING")
 
-	switch *strategy {
-	case "insidetree":
-		idx = treeindex.New(treeindex.Options{StopOnInsideFound: *stopOnFirstFound})
-	case "shapeindex":
-		idx = shapeindex.New()
-	default:
-		level.Error(logger).Log("msg", "unknown strategy", "error", err, "strategy", *strategy)
-		os.Exit(2)
+	features, err := s.Stab(47.8469, 5.4031)
+	level.Info(logger).Log("msg", "result stab", "features", features, "err", err)
+
+	select {
+	case <-interrupt:
+		cancel()
+		break
+	case <-ctx.Done():
+		break
 	}
 
-	err = storage.LoadAllFeatures(idx)
+	level.Warn(logger).Log("msg", "received shutdown signal")
+
+	healthServer.SetServingStatus(fmt.Sprintf("grpc.health.v1.%s", appName), healthpb.HealthCheckResponse_NOT_SERVING)
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	if httpMetricsServer != nil {
+		_ = httpMetricsServer.Shutdown(shutdownCtx)
+	}
+
+	if httpServer != nil {
+		_ = httpServer.Shutdown(shutdownCtx)
+	}
+
+	if grpcServer != nil {
+		grpcServer.GracefulStop()
+	}
+
+	if grpcHealthServer != nil {
+		grpcHealthServer.GracefulStop()
+	}
+
+	err = g.Wait()
 	if err != nil {
-		level.Error(logger).Log("msg", "failed to load feature from storage", "error", err, "strategy", *strategy)
+		level.Error(logger).Log("msg", "server returning an error", "error", err)
 		os.Exit(2)
-	}
-
-	idxResp := idx.Stab(47.8469, 5.4031)
-	for _, fid := range idxResp.IDsInside {
-		fi, err := gc.Get(fid.ID)
-		if err != nil {
-			stdlog.Fatal(err)
-		}
-		f := fi.(*insideout.Feature)
-		stdlog.Println("Found inside ID", fid.ID, f.Properties, "loop #", fid.Pos)
-	}
-
-	for _, fid := range idxResp.IDsMayBeInside {
-		fi, err := gc.Get(fid.ID)
-		if err != nil {
-			stdlog.Fatal(err)
-		}
-		f := fi.(*insideout.Feature)
-		stdlog.Println("Testing PIP outside ID", fid.ID, f.Properties, "loop #", fid.Pos)
-		l := f.Loops[fid.Pos]
-		if l.ContainsPoint(s2.PointFromLatLng(s2.LatLngFromDegrees(47.8469, 5.4031))) {
-			stdlog.Println("Found in PIP outside ID", fid.ID, f.Properties, "loop #", fid.Pos)
-		}
 	}
 
 	var m runtime.MemStats
