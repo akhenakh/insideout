@@ -9,7 +9,7 @@ DATE := $(shell date -u +%Y%m%d.%H%M%S)
 LDFLAGS = -trimpath -ldflags "-X=main.version=$(VERSION)-$(DATE)"
 CGO_ENABLED=0
 
-targets = reader index
+targets = reader indexer
 
 .PHONY: all lint test reader indexer clean
 

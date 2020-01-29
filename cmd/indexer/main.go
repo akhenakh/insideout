@@ -108,8 +108,16 @@ func main() {
 	}
 	defer clean()
 
-	icoverer := &s2.RegionCoverer{MinLevel: *insideMinLevelCover, MaxLevel: *insideMaxLevelCover, MaxCells: *insideMaxCellsCover}
-	ocoverer := &s2.RegionCoverer{MinLevel: *outsideMinLevelCover, MaxLevel: *outsideMaxLevelCover, MaxCells: *outsideMaxCellsCover}
+	icoverer := &s2.RegionCoverer{
+		MinLevel: *insideMinLevelCover,
+		MaxLevel: *insideMaxLevelCover,
+		MaxCells: *insideMaxCellsCover,
+	}
+	ocoverer := &s2.RegionCoverer{
+		MinLevel: *outsideMinLevelCover,
+		MaxLevel: *outsideMaxLevelCover,
+		MaxCells: *outsideMaxCellsCover,
+	}
 
 	var count uint32
 

@@ -23,8 +23,8 @@ func GeoJSONCoverCellUnion(f *geojson.Feature, coverer *s2.RegionCoverer, interi
 		return nil, errors.New("invalid geometry")
 	}
 	var cu []s2.CellUnion
-	switch rg := f.Geometry.(type) {
 
+	switch rg := f.Geometry.(type) {
 	case *geom.Polygon:
 		// only supports outer ring
 		cup, err := coverPolygon(rg.FlatCoords(), coverer, interior)
@@ -32,7 +32,6 @@ func GeoJSONCoverCellUnion(f *geojson.Feature, coverer *s2.RegionCoverer, interi
 			return nil, errors.Wrap(err, "can't cover polygon")
 		}
 		cu = append(cu, cup)
-
 	case *geom.MultiPolygon:
 		for i := 0; i < rg.NumPolygons(); i++ {
 			p := rg.Polygon(i)
@@ -56,8 +55,8 @@ func GeoJSONEncodeLoops(f *geojson.Feature) ([][]byte, error) {
 		return nil, errors.New("invalid geometry")
 	}
 	var b [][]byte
-	switch rg := f.Geometry.(type) {
 
+	switch rg := f.Geometry.(type) {
 	case *geom.Polygon:
 		// only supports outer ring
 		lb := new(bytes.Buffer)

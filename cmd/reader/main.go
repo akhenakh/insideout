@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	stdlog "log"
-	"net/http"
-	_ "net/http/pprof"
+
+	//_ "net/http/pprof"
 	"os"
 	"runtime"
 
@@ -43,9 +43,9 @@ func main() {
 
 	level.Info(logger).Log("msg", "Starting app", "version", version)
 
-	go func() {
-		stdlog.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
+	// go func() {
+	// 	stdlog.Println(http.ListenAndServe("localhost:6060", nil))
+	// }()
 
 	storage, clean, err := insideout.NewLevelDBStorage(*dbPath, logger)
 	if err != nil {
@@ -116,9 +116,6 @@ func main() {
 	fmt.Printf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
 	fmt.Printf("\tSys = %v MiB", bToMb(m.Sys))
 	fmt.Printf("\tNumGC = %v\n", m.NumGC)
-
-	//time.Sleep(2 * time.Minute)
-
 }
 
 func bToMb(b uint64) uint64 {
