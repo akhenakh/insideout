@@ -78,8 +78,8 @@ func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stdout))
 	logger = log.With(logger, "caller", log.Caller(5), "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "app", appName)
-	logger = level.NewFilter(logger, level.AllowAll())
-
+	//logger = level.NewFilter(logger, level.AllowAll())
+	logger = level.NewFilter(logger, level.AllowInfo())
 	stdlog.SetOutput(log.NewStdlibAdapter(logger))
 
 	level.Info(logger).Log("msg", "Starting app", "version", version)

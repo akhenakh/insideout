@@ -71,7 +71,8 @@ func GeoJSONEncodeLoops(f *geojson.Feature) ([][]byte, error) {
 	case *geom.MultiPolygon:
 		for i := 0; i < rg.NumPolygons(); i++ {
 			lb := new(bytes.Buffer)
-			l := LoopFromCoordinates(rg.FlatCoords())
+			p := rg.Polygon(i)
+			l := LoopFromCoordinates(p.FlatCoords())
 			err := l.Encode(lb)
 			if err != nil {
 				return nil, errors.Wrap(err, "can't encode polygon")

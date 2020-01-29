@@ -86,7 +86,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	idxResp := idx.Stab(48.864716, 2.349014)
+	idxResp := idx.Stab(47.8469, 5.4031)
 	for _, fid := range idxResp.IDsInside {
 		fi, err := gc.Get(fid.ID)
 		if err != nil {
@@ -104,7 +104,7 @@ func main() {
 		f := fi.(*insideout.Feature)
 		stdlog.Println("Testing PIP outside ID", fid.ID, f.Properties, "loop #", fid.Pos)
 		l := f.Loops[fid.Pos]
-		if l.ContainsPoint(s2.PointFromLatLng(s2.LatLngFromDegrees(48.864716, 2.349014))) {
+		if l.ContainsPoint(s2.PointFromLatLng(s2.LatLngFromDegrees(47.8469, 5.4031))) {
 			stdlog.Println("Found in PIP outside ID", fid.ID, f.Properties, "loop #", fid.Pos)
 		}
 	}
