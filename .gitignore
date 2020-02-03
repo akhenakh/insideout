@@ -17,4 +17,5 @@
 .idea/
 /cmd/indexer/out.db/
 /cmd/indexer/indexer
-/cmd/reader/reader
+/cmd/insided/insided
+/cmd/insidecli/insidecli

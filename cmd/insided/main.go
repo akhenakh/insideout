@@ -7,7 +7,7 @@ import (
 	"net"
 	"net/http"
 
-	_ "net/http/pprof"
+	//_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -17,19 +17,24 @@ import (
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gorilla/mux"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_opentracing "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/namsral/flag"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/akhenakh/insideout"
+	"github.com/akhenakh/insideout/insidesvc"
 	"github.com/akhenakh/insideout/server"
 	"github.com/akhenakh/insideout/server/debug"
 )
 
-const appName = "reader"
+const appName = "insided"
 
 var (
 	version = "no version from LDFLAGS"
@@ -109,7 +114,7 @@ func main() {
 	})
 
 	// server
-	s := server.New(storage, logger, healthServer,
+	server := server.New(storage, logger, healthServer,
 		server.Options{
 			StopOnFirstFound: *stopOnFirstFound,
 			CacheCount:       *cacheCount,
@@ -133,6 +138,33 @@ func main() {
 		}
 
 		return nil
+	})
+
+	// gRPC server
+	g.Go(func() error {
+		addr := fmt.Sprintf(":%d", *grpcPort)
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			level.Error(logger).Log("msg", "gRPC server: failed to listen", "error", err)
+			os.Exit(2)
+		}
+
+		grpcServer = grpc.NewServer(
+			// MaxConnectionAge is just to avoid long connection, to facilitate load balancing
+			// MaxConnectionAgeGrace will torn them, default to infinity
+			grpc.KeepaliveParams(keepalive.ServerParameters{MaxConnectionAge: 5 * time.Minute}),
+			grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
+				grpc_opentracing.StreamServerInterceptor(),
+				grpc_prometheus.StreamServerInterceptor,
+			)),
+			grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+				grpc_opentracing.UnaryServerInterceptor(),
+				grpc_prometheus.UnaryServerInterceptor,
+			)),
+		)
+		insidesvc.RegisterInsideServer(grpcServer, server)
+
+		return grpcServer.Serve(ln)
 	})
 
 	// API web server
@@ -169,9 +201,6 @@ func main() {
 
 	healthServer.SetServingStatus(fmt.Sprintf("grpc.health.v1.%s", appName), healthpb.HealthCheckResponse_SERVING)
 	level.Info(logger).Log("msg", "serving status to SERVING")
-
-	features, err := s.Stab(47.8469, 5.4031)
-	level.Info(logger).Log("msg", "result stab", "features", features, "err", err)
 
 	select {
 	case <-interrupt:

@@ -3,8 +3,10 @@ package insideout
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 
 	"github.com/golang/geo/s2"
+	spb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/pkg/errors"
 	"github.com/twpayne/go-geom"
 	"github.com/twpayne/go-geom/encoding/geojson"
@@ -159,4 +161,44 @@ func CellKey(id uint32) []byte {
 
 func InfoKey() []byte {
 	return []byte{infoKey}
+}
+
+// PropertiesToValues converts feature's properties to protobuf Value
+func PropertiesToValues(f *Feature) (map[string]*spb.Value, error) {
+	m := make(map[string]*spb.Value)
+	for k, vi := range f.Properties {
+		switch tv := vi.(type) {
+		case bool:
+			m[k] = &spb.Value{Kind: &spb.Value_BoolValue{BoolValue: tv}}
+		case int:
+			m[k] = &spb.Value{Kind: &spb.Value_NumberValue{NumberValue: float64(tv)}}
+		case string:
+			m[k] = &spb.Value{Kind: &spb.Value_StringValue{StringValue: tv}}
+		case float64:
+			m[k] = &spb.Value{Kind: &spb.Value_NumberValue{NumberValue: tv}}
+		case nil:
+			// pass
+		default:
+			return nil, fmt.Errorf("GeoJSON property %s unsupported type %T", k, tv)
+		}
+	}
+
+	return m, nil
+}
+
+// ValueToProperties converts a protobuf Value map to its JSON serializable map equivalent
+func ValueToProperties(src map[string]*spb.Value) map[string]interface{} {
+	res := make(map[string]interface{})
+
+	for k, v := range src {
+		switch x := v.Kind.(type) {
+		case *spb.Value_NumberValue:
+			res[k] = x.NumberValue
+		case *spb.Value_StringValue:
+			res[k] = x.StringValue
+		case *spb.Value_BoolValue:
+			res[k] = x.BoolValue
+		}
+	}
+	return res
 }

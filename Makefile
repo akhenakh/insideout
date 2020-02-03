@@ -9,9 +9,9 @@ DATE := $(shell date -u +%Y%m%d.%H%M%S)
 LDFLAGS = -trimpath -ldflags "-X=main.version=$(VERSION)-$(DATE)"
 CGO_ENABLED=0
 
-targets = reader indexer
+targets = reader indexer insidecli
 
-.PHONY: all lint test reader indexer clean
+.PHONY: all lint test insided insidecli indexer clean
 
 all: test $(targets)
 
@@ -22,12 +22,16 @@ test: lint
 lint:
 	golangci-lint run
 
-reader:
-	cd cmd/reader && go build $(LDFLAGS)
+insided:
+	cd cmd/insided && go build $(LDFLAGS)
+
+insidecli:
+	cd cmd/insidecli && go build $(LDFLAGS)
 
 indexer:
 	cd cmd/indexer && go build $(LDFLAGS)
 
 clean:
 	rm -f cmd/indexer/indexer
-	rm -f cmd/reader/reader
+	rm -f cmd/insided/insided
+	rm -f cmd/insidecli/insidecli

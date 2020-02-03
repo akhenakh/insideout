@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+import "google/protobuf/struct.proto";
+
+service Inside {
+    //  Stab returns features containing lat lng
+    rpc Within(WithinRequest) returns (WithinResponse) {}
+    // Get returns a feature by its ID
+    rpc Get(GetRequest) returns (Feature) {}
+}
+
+message WithinRequest {
+    double lat = 1;
+    double lng = 2;
+
+    // return features geometries or not
+    // saving extra bytes
+    bool remove_geometries = 3;
+
+    // comma separated list of property so returns to save extra bytes, leave empty for all
+    string select_properties = 4;
+}
+
+message WithinResponse {
+    Point point = 1;
+    repeated FeatureResponse responses = 2;
+}
+
+message GetRequest {
+    uint32 id = 1;
+}
+
+message FeatureResponse {
+    // id in the index
+    uint32 id = 1;
+
+    Feature feature = 3;
+}
+
+message Feature {
+    Geometry geometry = 1;
+
+    map<string, google.protobuf.Value> properties = 2;
+}
+
+message Geometry {
+    Type type = 1;
+
+    repeated Geometry geometries = 2;
+
+    repeated double coordinates = 3;
+
+    enum Type {
+        POINT = 0;
+        POLYGON = 1;
+        MULTIPOLYGON = 2;
+        LINESTRING = 3;
+    }
+}
+
+message Point {
+    double lat = 1;
+    double lng = 2;
+}
