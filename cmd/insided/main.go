@@ -178,7 +178,7 @@ func main() {
 
 			resp, err := healthServer.Check(ctx, &healthpb.HealthCheckRequest{Service: fmt.Sprintf("grpc.health.v1.%s", appName)})
 			if err != nil {
-				json := []byte(fmt.Sprintf("{\"status\": \"%s\"}", healthpb.HealthCheckResponse_SERVICE_UNKNOWN.String()))
+				json := []byte(fmt.Sprintf("{\"status\": \"%s\"}", healthpb.HealthCheckResponse_UNKNOWN.String()))
 				w.WriteHeader(http.StatusInternalServerError)
 				w.Write(json)
 				return
