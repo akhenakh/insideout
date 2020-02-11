@@ -9,7 +9,7 @@ import (
 	"github.com/akhenakh/insideout"
 )
 
-// Index using s2.ShapeIndex
+// Index using s2.ShapeIndexStragy
 type Index struct {
 	sync.Mutex
 	*s2.ShapeIndex
@@ -51,7 +51,7 @@ func (idx *Index) Add(si *insideout.FeatureStorage, id uint32) error {
 
 // Stab returns polygon's ids we are inside and polygon's ids we may be inside
 // in case of this index we are always in
-func (idx *Index) Stab(lat, lng float64) insideout.IndexResponse {
+func (idx *Index) Stab(lat, lng float64) (insideout.IndexResponse, error) {
 	idx.Lock()
 	defer idx.Unlock()
 	p := s2.PointFromLatLng(s2.LatLngFromDegrees(lat, lng))
@@ -68,5 +68,5 @@ func (idx *Index) Stab(lat, lng float64) insideout.IndexResponse {
 		il := shape.(indexedLoop)
 		idxResp.IDsInside = append(idxResp.IDsInside, il.FeatureIndexResponse)
 	}
-	return idxResp
+	return idxResp, nil
 }

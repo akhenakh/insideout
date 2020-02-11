@@ -21,7 +21,7 @@ const (
 
 	InsideTreeStrategy = "insidetree"
 	DBStrategy         = "db"
-	ShapeIndex         = "shapeindex"
+	ShapeIndexStragy   = "shapeindex"
 )
 
 // GeoJSONCoverCellUnion generates an s2 cover normalized
@@ -138,11 +138,33 @@ func InsideKey(c s2.CellID) []byte {
 	return k
 }
 
+// InsideRangeKeys returns the min and max range keys for c
+func InsideRangeKeys(c s2.CellID) ([]byte, []byte) {
+	mink := make([]byte, 1+8)
+	mink[0] = insidePrefix
+	binary.BigEndian.PutUint64(mink[1:], uint64(c.RangeMin()))
+	maxk := make([]byte, 1+8)
+	maxk[0] = insidePrefix
+	binary.BigEndian.PutUint64(maxk[1:], uint64(c.RangeMax()))
+	return mink, maxk
+}
+
 func OutsideKey(c s2.CellID) []byte {
 	k := make([]byte, 1+8)
 	k[0] = outsidePrefix
 	binary.BigEndian.PutUint64(k[1:], uint64(c))
 	return k
+}
+
+// OutsideRangeKeys returns the min and max range keys for c
+func OutsideRangeKeys(c s2.CellID) ([]byte, []byte) {
+	mink := make([]byte, 1+8)
+	mink[0] = outsidePrefix
+	binary.BigEndian.PutUint64(mink[1:], uint64(c.RangeMin()))
+	maxk := make([]byte, 1+8)
+	maxk[0] = outsidePrefix
+	binary.BigEndian.PutUint64(maxk[1:], uint64(c.RangeMax()))
+	return mink, maxk
 }
 
 func FeatureKey(id uint32) []byte {

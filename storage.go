@@ -47,6 +47,7 @@ type IndexInfos struct {
 	IndexTime      time.Time
 	IndexerVersion string
 	FeatureCount   uint32
+	MinCoverLevel  int
 }
 
 // NewStorage returns a cold storage using leveldb
@@ -74,8 +75,7 @@ func (s *Storage) LoadFeature(id uint32) (*Feature, error) {
 		return nil, err
 	}
 	dec := cbor.NewDecoder(bytes.NewReader(v))
-	fs := featureStoragePool.Get().(*FeatureStorage)
-	defer featureStoragePool.Put(fs)
+	fs := &FeatureStorage{}
 	if err = dec.Decode(fs); err != nil {
 		return nil, err
 	}

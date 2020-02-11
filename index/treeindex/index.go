@@ -50,7 +50,7 @@ func (idx *Index) Add(cs *insideout.CellsStorage, id uint32) {
 }
 
 // Stab returns polygon's ids containing lat lng and polygon's ids that may be
-func (idx *Index) Stab(lat, lng float64) insideout.IndexResponse {
+func (idx *Index) Stab(lat, lng float64) (insideout.IndexResponse, error) {
 	var idxResp insideout.IndexResponse
 
 	p := s2.PointFromLatLng(s2.LatLngFromDegrees(lat, lng))
@@ -63,12 +63,12 @@ func (idx *Index) Stab(lat, lng float64) insideout.IndexResponse {
 	}
 
 	if idx.opts.StopOnInsideFound && len(res) > 0 {
-		return idxResp
+		return idxResp, nil
 	}
 
 	res = idx.otree.Stab(c)
 	if len(res) == 0 {
-		return idxResp
+		return idxResp, nil
 	}
 
 	for _, r := range res {
@@ -84,5 +84,5 @@ func (idx *Index) Stab(lat, lng float64) insideout.IndexResponse {
 			idxResp.IDsMayBeInside = append(idxResp.IDsMayBeInside, fres)
 		}
 	}
-	return idxResp
+	return idxResp, nil
 }

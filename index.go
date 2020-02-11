@@ -17,7 +17,7 @@ var (
 // Index offers different strategy indexers to speed up queries
 type Index interface {
 	// Stab returns ids of polygon we are inside and polygons we may be inside
-	Stab(lat, lng float64) IndexResponse
+	Stab(lat, lng float64) (IndexResponse, error)
 }
 
 // IndexResponse a response to find back a feature from an index

@@ -66,7 +66,7 @@ func main() {
 	stdlog.SetOutput(log.NewStdlibAdapter(logger))
 
 	switch *strategy {
-	case insideout.InsideTreeStrategy, insideout.DBStrategy, insideout.ShapeIndex:
+	case insideout.InsideTreeStrategy, insideout.DBStrategy, insideout.ShapeIndexStragy:
 	default:
 		level.Error(logger).Log("msg", "unknown strategy", "strategy", *strategy)
 		os.Exit(2)

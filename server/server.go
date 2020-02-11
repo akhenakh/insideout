@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/akhenakh/insideout"
+	"github.com/akhenakh/insideout/index/dbindex"
 	"github.com/akhenakh/insideout/index/shapeindex"
 	"github.com/akhenakh/insideout/index/treeindex"
 	"github.com/akhenakh/insideout/insidesvc"
@@ -47,7 +48,7 @@ func New(storage *insideout.Storage, logger log.Logger, healthServer *health.Ser
 			os.Exit(2)
 		}
 		idx = treeidx
-	case insideout.ShapeIndex:
+	case insideout.ShapeIndexStragy:
 		shapeidx := shapeindex.New()
 		err := storage.LoadAllFeatures(shapeidx.Add)
 		if err != nil {
@@ -55,6 +56,13 @@ func New(storage *insideout.Storage, logger log.Logger, healthServer *health.Ser
 			os.Exit(2)
 		}
 		idx = shapeidx
+	case insideout.DBStrategy:
+		dbidx, err := dbindex.New(storage, dbindex.Options{StopOnInsideFound: opts.StopOnFirstFound})
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to read storage", "error", err, "strategy", opts.Strategy)
+			os.Exit(2)
+		}
+		idx = dbidx
 	}
 
 	// cache
@@ -74,13 +82,16 @@ func New(storage *insideout.Storage, logger log.Logger, healthServer *health.Ser
 
 // Within query exposed via gRPC
 func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (*insidesvc.WithinResponse, error) {
-	idxResp := s.idx.Stab(req.Lat, req.Lng)
+	idxResp, err := s.idx.Stab(req.Lat, req.Lng)
+	if err != nil {
+		return nil, err
+	}
 
 	level.Debug(s.logger).Log("msg", "querying within",
 		"lat", req.Lat,
 		"lng", req.Lng,
 		"idx_resp", idxResp,
-		"idx", s.idx)
+	)
 
 	var fresps []*insidesvc.FeatureResponse
 
@@ -202,7 +213,10 @@ func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (*insidesvc
 // Stab returns features containing lat lng
 func (s *Server) IndexStab(lat, lng float64) ([]*insideout.Feature, error) {
 	var res []*insideout.Feature
-	idxResp := s.idx.Stab(lat, lng)
+	idxResp, err := s.idx.Stab(lat, lng)
+	if err != nil {
+		return nil, err
+	}
 	for _, fid := range idxResp.IDsInside {
 		fi, err := s.cache.Get(fid.ID)
 		if err != nil {

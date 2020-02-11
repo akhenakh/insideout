@@ -61,10 +61,10 @@ var (
 	version = "no version from LDFLAGS"
 
 	insideMaxLevelCover  = flag.Int("insideMaxLevelCover", 16, "Max s2 level for inside cover")
-	insideMinLevelCover  = flag.Int("insideMinLevelCover", 0, "Min s2 level for inside cover")
+	insideMinLevelCover  = flag.Int("insideMinLevelCover", 10, "Min s2 level for inside cover")
 	insideMaxCellsCover  = flag.Int("insideMaxCellsCover", 16, "Max s2 Cells count for inside cover")
 	outsideMaxLevelCover = flag.Int("outsideMaxLevelCover", 13, "Max s2 level for outside cover")
-	outsideMinLevelCover = flag.Int("outsideMinLevelCover", 0, "Min s2 level for outside cover")
+	outsideMinLevelCover = flag.Int("outsideMinLevelCover", 10, "Min s2 level for outside cover")
 	outsideMaxCellsCover = flag.Int("outsideMaxCellsCover", 16, "Max s2 Cells count for outside cover")
 	warningCellsCover    = flag.Int("warningCellsCover", 1000, "warning limit cover count")
 
@@ -149,7 +149,7 @@ func main() {
 				continue
 			}
 			for _, c := range cu {
-				// value is the feature index: count, the polygon index: fi
+				// value is the feature id: current count, the polygon index in a multipolygon: fi
 				v := make([]byte, 6)
 				binary.BigEndian.PutUint32(v, count)
 				binary.BigEndian.PutUint16(v, uint16(fi))
@@ -176,12 +176,9 @@ func main() {
 				continue
 			}
 			for _, c := range cu {
-				// filter cells already indexed by inside cover
-				if cui[fi].ContainsCellID(c) {
-					continue
-				}
+				// TODO: filter cells already indexed by inside cover
 
-				// value is the feature index: count, the polygon index: fi
+				// value is the feature id: current count, the polygon index in a multipolygon: fi
 				v := make([]byte, 6)
 				binary.BigEndian.PutUint32(v, count)
 				binary.BigEndian.PutUint16(v, uint16(fi))
@@ -250,11 +247,17 @@ func main() {
 
 	infoBytes := new(bytes.Buffer)
 
+	// Finding the lowest cover level
+	minCoverLevel := *outsideMinLevelCover
+	if *insideMinLevelCover < *outsideMinLevelCover {
+		minCoverLevel = *insideMinLevelCover
+	}
 	infos := &insideout.IndexInfos{
 		Filename:       path.Base(*filePath),
 		IndexTime:      time.Now(),
 		IndexerVersion: version,
 		FeatureCount:   count,
+		MinCoverLevel:  minCoverLevel,
 	}
 
 	enc := cbor.NewEncoder(infoBytes, cbor.CanonicalEncOptions())
