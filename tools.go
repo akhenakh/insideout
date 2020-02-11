@@ -131,6 +131,22 @@ func LoopFromCoordinates(c []float64) *s2.Loop {
 	return loop
 }
 
+// CoordinatesFromLoops returns []float64 as lng lat adding 1st as last suitable for GeoJSON
+func CoordinatesFromLoops(l *s2.Loop) []float64 {
+	points := l.Vertices()
+	coords := make([]float64, len(points)*2+2)
+
+	for i := 0; i < len(points); i++ {
+		ll := s2.LatLngFromPoint(points[i])
+		coords[i*2] = ll.Lng.Degrees()
+		coords[i*2+1] = ll.Lat.Degrees()
+	}
+	coords[len(points)*2] = coords[0]
+	coords[len(points)*2+1] = coords[1]
+
+	return coords
+}
+
 func InsideKey(c s2.CellID) []byte {
 	k := make([]byte, 1+8)
 	k[0] = insidePrefix

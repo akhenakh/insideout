@@ -2,12 +2,17 @@ package server
 
 import (
 	"context"
+	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/bluele/gcache"
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/golang/geo/s2"
+	"github.com/gorilla/mux"
+	"github.com/twpayne/go-geom"
+	"github.com/twpayne/go-geom/encoding/geojson"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/status"
@@ -152,7 +157,10 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (*ins
 		feature := &insidesvc.Feature{}
 
 		if !req.RemoveGeometries {
-			//TODO: convert feature.Geometry
+			feature.Geometry = &insidesvc.Geometry{
+				Type:        insidesvc.Geometry_POLYGON,
+				Coordinates: insideout.CoordinatesFromLoops(l),
+			}
 		}
 
 		//TODO: filter properties
@@ -183,6 +191,50 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (*ins
 	}
 
 	return resp, nil
+}
+
+// WithinHandler HTTP 1.1 Handler to query within returns GeoJSON
+func (s *Server) WithinHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	lat, err := strconv.ParseFloat(vars["lat"], 64)
+	if err != nil {
+		http.Error(w, "invalid parameter lat", 400)
+		return
+	}
+	lng, err := strconv.ParseFloat(vars["lng"], 64)
+	if err != nil {
+		http.Error(w, "invalid parameter lat", 400)
+		return
+	}
+
+	ctx := r.Context()
+
+	resp, err := s.Within(ctx, &insidesvc.WithinRequest{
+		Lat: lat,
+		Lng: lng,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	fc := &geojson.FeatureCollection{}
+	for _, fres := range resp.Responses {
+		f := &geojson.Feature{}
+		ng := geom.NewPolygonFlat(geom.XY, fres.Feature.Geometry.Coordinates, []int{len(fres.Feature.Geometry.Coordinates)})
+		f.Geometry = ng
+		f.Properties = insideout.ValueToProperties(fres.Feature.Properties)
+		fc.Features = append(fc.Features, f)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json, err := fc.MarshalJSON()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.Write(json)
 }
 
 func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (*insidesvc.Feature, error) {

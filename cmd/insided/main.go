@@ -7,7 +7,7 @@ import (
 	"net"
 	"net/http"
 
-	//_ "net/http/pprof"
+	// _ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -16,6 +16,7 @@ import (
 
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_opentracing "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
@@ -173,6 +174,7 @@ func main() {
 
 		r := mux.NewRouter()
 		r.HandleFunc("/api/debug/cells", debug.S2CellQueryHandler)
+		r.HandleFunc("/api/within/{lat}/{lng}", server.WithinHandler)
 		r.HandleFunc("/healthz", func(w http.ResponseWriter, request *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 
@@ -194,7 +196,7 @@ func main() {
 			Addr:         fmt.Sprintf(":%d", *httpAPIPort),
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
-			Handler:      r,
+			Handler:      handlers.CompressHandler(r),
 		}
 		level.Info(logger).Log("msg", fmt.Sprintf("HTTP API server listening at :%d", *httpAPIPort))
 
