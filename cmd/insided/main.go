@@ -173,6 +173,22 @@ func main() {
 
 		r := mux.NewRouter()
 		r.HandleFunc("/api/debug/cells", debug.S2CellQueryHandler)
+		r.HandleFunc("/healthz", func(w http.ResponseWriter, request *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			resp, err := healthServer.Check(ctx, &healthpb.HealthCheckRequest{Service: fmt.Sprintf("grpc.health.v1.%s", appName)})
+			if err != nil {
+				json := []byte(fmt.Sprintf("{\"status\": \"%s\"}", healthpb.HealthCheckResponse_SERVICE_UNKNOWN.String()))
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write(json)
+				return
+			}
+			if resp.Status != healthpb.HealthCheckResponse_SERVING {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+			json := []byte(fmt.Sprintf("{\"status\": \"%s\"}", resp.Status.String()))
+			w.Write(json)
+		})
 
 		httpServer = &http.Server{
 			Addr:         fmt.Sprintf(":%d", *httpAPIPort),
