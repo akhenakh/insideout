@@ -99,7 +99,7 @@ func (s *Storage) LoadFeature(id uint32) (*Feature, error) {
 // LoadAllFeatures loads FeatureStorage from DB into idx
 // only useful to fill in memory shapeindex
 func (s *Storage) LoadAllFeatures(add func(*FeatureStorage, uint32) error) error {
-	iter := s.NewIterator(util.BytesPrefix([]byte{byte(featurePrefix)}), &opt.ReadOptions{
+	iter := s.NewIterator(util.BytesPrefix([]byte{featurePrefix}), &opt.ReadOptions{
 		DontFillCache: true,
 	})
 	for iter.Next() {
@@ -127,7 +127,7 @@ func (s *Storage) LoadAllFeatures(add func(*FeatureStorage, uint32) error) error
 // LoadFeaturesCells loads CellsStorage from DB into idx
 // only useful to fill in memory tree indexes
 func (s *Storage) LoadFeaturesCells(add func(*CellsStorage, uint32)) error {
-	iter := s.NewIterator(util.BytesPrefix([]byte{byte(cellPrefix)}), &opt.ReadOptions{
+	iter := s.NewIterator(util.BytesPrefix([]byte{cellPrefix}), &opt.ReadOptions{
 		DontFillCache: true,
 	})
 	for iter.Next() {

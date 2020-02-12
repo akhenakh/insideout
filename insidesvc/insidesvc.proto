@@ -5,7 +5,7 @@ import "google/protobuf/struct.proto";
 service Inside {
     //  Stab returns features containing lat lng
     rpc Within(WithinRequest) returns (WithinResponse) {}
-    // Get returns a feature by its ID
+    // Get returns a feature by its internal ID and polygon index
     rpc Get(GetRequest) returns (Feature) {}
 }
 
@@ -28,6 +28,8 @@ message WithinResponse {
 
 message GetRequest {
     uint32 id = 1;
+    // internally stored as uint16
+    uint32 loop_index = 2;
 }
 
 message FeatureResponse {

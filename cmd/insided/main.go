@@ -67,7 +67,7 @@ func main() {
 	stdlog.SetOutput(log.NewStdlibAdapter(logger))
 
 	switch *strategy {
-	case insideout.InsideTreeStrategy, insideout.DBStrategy, insideout.ShapeIndexStragy:
+	case insideout.InsideTreeStrategy, insideout.DBStrategy, insideout.ShapeIndexStrategy:
 	default:
 		level.Error(logger).Log("msg", "unknown strategy", "strategy", *strategy)
 		os.Exit(2)
@@ -174,6 +174,7 @@ func main() {
 
 		r := mux.NewRouter()
 		r.HandleFunc("/api/debug/cells", debug.S2CellQueryHandler)
+		r.HandleFunc("/api/debug/get/{fid}/{loop_index}", server.DebugGetHandler)
 		r.HandleFunc("/api/within/{lat}/{lng}", server.WithinHandler)
 		r.HandleFunc("/healthz", func(w http.ResponseWriter, request *http.Request) {
 			w.Header().Set("Content-Type", "application/json")

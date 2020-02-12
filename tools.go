@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"strings"
 
 	"github.com/golang/geo/s2"
 	spb "github.com/golang/protobuf/ptypes/struct"
@@ -13,15 +14,15 @@ import (
 )
 
 const (
-	insidePrefix  = 'I'
-	outsidePrefix = 'O'
-	featurePrefix = 'F'
-	cellPrefix    = 'C'
-	infoKey       = 'i'
+	insidePrefix  byte = 'I'
+	outsidePrefix byte = 'O'
+	featurePrefix byte = 'F'
+	cellPrefix    byte = 'C'
+	infoKey       byte = 'i'
 
 	InsideTreeStrategy = "insidetree"
 	DBStrategy         = "db"
-	ShapeIndexStragy   = "shapeindex"
+	ShapeIndexStrategy = "shapeindex"
 )
 
 // GeoJSONCoverCellUnion generates an s2 cover normalized
@@ -239,4 +240,20 @@ func ValueToProperties(src map[string]*spb.Value) map[string]interface{} {
 		}
 	}
 	return res
+}
+
+// CellUnionToTokens a cell union to a token string list
+func CellUnionToTokens(cu s2.CellUnion) []string {
+	res := make([]string, len(cu))
+
+	for i, c := range cu {
+		res[i] = c.ToToken()
+	}
+	return res
+}
+
+// CellUnionToToken return a comma separated list of tokens
+func CellUnionToToken(cu s2.CellUnion) string {
+	l := CellUnionToTokens(cu)
+	return strings.Join(l, ",")
 }

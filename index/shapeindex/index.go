@@ -9,7 +9,7 @@ import (
 	"github.com/akhenakh/insideout"
 )
 
-// Index using s2.ShapeIndexStragy
+// Index using s2.ShapeIndexStrategy
 type Index struct {
 	sync.Mutex
 	*s2.ShapeIndex

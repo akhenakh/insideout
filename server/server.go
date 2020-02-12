@@ -1,15 +1,19 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"os"
 	"strconv"
 
 	"github.com/bluele/gcache"
+	"github.com/fxamacker/cbor"
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/golang/geo/s2"
+	"github.com/golang/protobuf/jsonpb"
+	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/gorilla/mux"
 	"github.com/twpayne/go-geom"
 	"github.com/twpayne/go-geom/encoding/geojson"
@@ -53,7 +57,7 @@ func New(storage *insideout.Storage, logger log.Logger, healthServer *health.Ser
 			os.Exit(2)
 		}
 		idx = treeidx
-	case insideout.ShapeIndexStragy:
+	case insideout.ShapeIndexStrategy:
 		shapeidx := shapeindex.New()
 		err := storage.LoadAllFeatures(shapeidx.Add)
 		if err != nil {
@@ -115,7 +119,11 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (*ins
 		feature := &insidesvc.Feature{}
 
 		if !req.RemoveGeometries {
-			//TODO: convert feature.Geometry
+			l := f.Loops[fid.Pos]
+			feature.Geometry = &insidesvc.Geometry{
+				Type:        insidesvc.Geometry_POLYGON,
+				Coordinates: insideout.CoordinatesFromLoops(l),
+			}
 		}
 
 		//TODO: filter properties
@@ -124,6 +132,8 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (*ins
 			return nil, err
 		}
 		feature.Properties = prop
+		feature.Properties[insidesvc.LoopIndexProperty] = &structpb.Value{Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.Pos)}}
+		feature.Properties[insidesvc.FeatureIDProperty] = &structpb.Value{Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.ID)}}
 
 		fresp := &insidesvc.FeatureResponse{
 			Id:      fid.ID,
@@ -180,7 +190,7 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (*ins
 	level.Info(s.logger).Log("msg", "result stab",
 		"lat", req.Lat,
 		"lng", req.Lng,
-		"features", fresps)
+		"features_count", len(fresps))
 
 	resp := &insidesvc.WithinResponse{
 		Point: &insidesvc.Point{
@@ -191,6 +201,67 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (*ins
 	}
 
 	return resp, nil
+}
+
+// DebugGetHandler HTTP 1.1 Handler to debug a feature
+func (s *Server) DebugGetHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	fid, err := strconv.ParseUint(vars["fid"], 10, 32)
+	if err != nil {
+		http.Error(w, "invalid parameter fid", 400)
+		return
+	}
+	lidx, err := strconv.ParseUint(vars["loop_index"], 10, 16)
+	if err != nil {
+		http.Error(w, "invalid parameter fid", 400)
+		return
+	}
+
+	ctx := r.Context()
+
+	f, err := s.Get(ctx, &insidesvc.GetRequest{
+		Id:        uint32(fid),
+		LoopIndex: uint32(lidx),
+	})
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	// get the s2 cells from the index
+	v, err := s.storage.Get(insideout.CellKey(uint32(fid)), nil)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	dec := cbor.NewDecoder(bytes.NewReader(v))
+	cs := &insideout.CellsStorage{}
+	if err := dec.Decode(cs); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	f.Properties[insidesvc.CellsInProperty] = &structpb.Value{
+		Kind: &structpb.Value_StringValue{
+			StringValue: insideout.CellUnionToToken(cs.CellsIn[lidx]),
+		},
+	}
+
+	f.Properties[insidesvc.CellsOutProperty] = &structpb.Value{
+		Kind: &structpb.Value_StringValue{
+			StringValue: insideout.CellUnionToToken(cs.CellsOut[lidx]),
+		},
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	m := jsonpb.Marshaler{}
+	err = m.Marshal(w, f)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 }
 
 // WithinHandler HTTP 1.1 Handler to query within returns GeoJSON
@@ -249,17 +320,29 @@ func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (*insidesvc
 
 	f := fi.(*insideout.Feature)
 
+	if req.LoopIndex >= uint32(len(f.Loops)) {
+		return nil, status.Error(codes.NotFound, "loop index out of range")
+
+	}
+	l := f.Loops[req.LoopIndex]
+
 	prop, err := insideout.PropertiesToValues(f)
 	if err != nil {
 		return nil, err
 	}
 
-	fg := &insidesvc.Feature{
-		Geometry:   nil,
+	feature := &insidesvc.Feature{
+		Geometry: &insidesvc.Geometry{
+			Type:        insidesvc.Geometry_POLYGON,
+			Coordinates: insideout.CoordinatesFromLoops(l),
+		},
 		Properties: prop,
 	}
 
-	return fg, nil
+	feature.Properties[insidesvc.LoopIndexProperty] = &structpb.Value{Kind: &structpb.Value_NumberValue{NumberValue: float64(req.LoopIndex)}}
+	feature.Properties[insidesvc.FeatureIDProperty] = &structpb.Value{Kind: &structpb.Value_NumberValue{NumberValue: float64(req.Id)}}
+
+	return feature, nil
 }
 
 // Stab returns features containing lat lng
