@@ -19,3 +19,4 @@
 /cmd/indexer/indexer
 /cmd/insided/insided
 /cmd/insidecli/insidecli
+out.db/
