@@ -179,7 +179,9 @@ func main() {
 		r.HandleFunc("/healthz", func(w http.ResponseWriter, request *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 
-			resp, err := healthServer.Check(ctx, &healthpb.HealthCheckRequest{Service: fmt.Sprintf("grpc.health.v1.%s", appName)})
+			resp, err := healthServer.Check(ctx, &healthpb.HealthCheckRequest{
+				Service: fmt.Sprintf("grpc.health.v1.%s", appName)},
+			)
 			if err != nil {
 				json := []byte(fmt.Sprintf("{\"status\": \"%s\"}", healthpb.HealthCheckResponse_UNKNOWN.String()))
 				w.WriteHeader(http.StatusInternalServerError)

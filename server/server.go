@@ -132,8 +132,12 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (*ins
 			return nil, err
 		}
 		feature.Properties = prop
-		feature.Properties[insidesvc.LoopIndexProperty] = &structpb.Value{Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.Pos)}}
-		feature.Properties[insidesvc.FeatureIDProperty] = &structpb.Value{Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.ID)}}
+		feature.Properties[insidesvc.LoopIndexProperty] = &structpb.Value{
+			Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.Pos)},
+		}
+		feature.Properties[insidesvc.FeatureIDProperty] = &structpb.Value{
+			Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.ID)},
+		}
 
 		fresp := &insidesvc.FeatureResponse{
 			Id:      fid.ID,
@@ -322,8 +326,8 @@ func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (*insidesvc
 
 	if req.LoopIndex >= uint32(len(f.Loops)) {
 		return nil, status.Error(codes.NotFound, "loop index out of range")
-
 	}
+
 	l := f.Loops[req.LoopIndex]
 
 	prop, err := insideout.PropertiesToValues(f)
@@ -339,8 +343,12 @@ func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (*insidesvc
 		Properties: prop,
 	}
 
-	feature.Properties[insidesvc.LoopIndexProperty] = &structpb.Value{Kind: &structpb.Value_NumberValue{NumberValue: float64(req.LoopIndex)}}
-	feature.Properties[insidesvc.FeatureIDProperty] = &structpb.Value{Kind: &structpb.Value_NumberValue{NumberValue: float64(req.Id)}}
+	feature.Properties[insidesvc.LoopIndexProperty] = &structpb.Value{
+		Kind: &structpb.Value_NumberValue{NumberValue: float64(req.LoopIndex)},
+	}
+	feature.Properties[insidesvc.FeatureIDProperty] = &structpb.Value{
+		Kind: &structpb.Value_NumberValue{NumberValue: float64(req.Id)},
+	}
 
 	return feature, nil
 }
