@@ -23,6 +23,8 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/namsral/flag"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	metrics "github.com/slok/go-http-metrics/metrics/prometheus"
+	"github.com/slok/go-http-metrics/middleware"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -81,7 +83,7 @@ func main() {
 
 	// catch termination
 	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(interrupt)
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -170,12 +172,21 @@ func main() {
 
 	// API web server
 	g.Go(func() error {
-		// web server
+		// web
 
+		// metrics middleware.
+		metricsMwr := middleware.New(middleware.Config{
+			Recorder: metrics.NewRecorder(metrics.Config{Prefix: appName}),
+		})
 		r := mux.NewRouter()
 		r.HandleFunc("/api/debug/cells", debug.S2CellQueryHandler)
+
 		r.HandleFunc("/api/debug/get/{fid}/{loop_index}", server.DebugGetHandler)
-		r.HandleFunc("/api/within/{lat}/{lng}", server.WithinHandler)
+
+		r.Handle("/api/within/{lat}/{lng}",
+			metricsMwr.Handler("/api/within/lat/lng",
+				http.HandlerFunc(server.WithinHandler)))
+
 		r.HandleFunc("/healthz", func(w http.ResponseWriter, request *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 

@@ -1,22 +1,18 @@
 package server
 
 import (
-	"bytes"
 	"context"
-	"net/http"
 	"os"
-	"strconv"
 
 	"github.com/bluele/gcache"
-	"github.com/fxamacker/cbor"
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/golang/geo/s2"
-	"github.com/golang/protobuf/jsonpb"
 	structpb "github.com/golang/protobuf/ptypes/struct"
-	"github.com/gorilla/mux"
-	"github.com/twpayne/go-geom"
-	"github.com/twpayne/go-geom/encoding/geojson"
+	"github.com/opentracing/opentracing-go"
+	slog "github.com/opentracing/opentracing-go/log"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/status"
@@ -26,6 +22,14 @@ import (
 	"github.com/akhenakh/insideout/index/shapeindex"
 	"github.com/akhenakh/insideout/index/treeindex"
 	"github.com/akhenakh/insideout/insidesvc"
+)
+
+var (
+	errorCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "insided_server",
+		Name:      "error_total",
+		Help:      "The total number of errors occurring",
+	})
 )
 
 // Server exposes indexes services
@@ -90,7 +94,12 @@ func New(storage *insideout.Storage, logger log.Logger, healthServer *health.Ser
 }
 
 // Within query exposed via gRPC
-func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (*insidesvc.WithinResponse, error) {
+func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (resp *insidesvc.WithinResponse, terr error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Within")
+	defer span.Finish()
+
+	defer s.handleError(terr, span)
+
 	idxResp, err := s.idx.Stab(req.Lat, req.Lng)
 	if err != nil {
 		return nil, err
@@ -100,6 +109,11 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (*ins
 		"lat", req.Lat,
 		"lng", req.Lng,
 		"idx_resp", idxResp,
+	)
+
+	span.LogFields(
+		slog.Float64("lat", req.Lat),
+		slog.Float64("lng", req.Lng),
 	)
 
 	var fresps []*insidesvc.FeatureResponse
@@ -196,7 +210,7 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (*ins
 		"lng", req.Lng,
 		"features_count", len(fresps))
 
-	resp := &insidesvc.WithinResponse{
+	resp = &insidesvc.WithinResponse{
 		Point: &insidesvc.Point{
 			Lat: req.Lat,
 			Lng: req.Lng,
@@ -207,112 +221,17 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (*ins
 	return resp, nil
 }
 
-// DebugGetHandler HTTP 1.1 Handler to debug a feature
-func (s *Server) DebugGetHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
+func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (feature *insidesvc.Feature, terr error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Get")
+	defer span.Finish()
 
-	fid, err := strconv.ParseUint(vars["fid"], 10, 32)
-	if err != nil {
-		http.Error(w, "invalid parameter fid", 400)
-		return
-	}
-	lidx, err := strconv.ParseUint(vars["loop_index"], 10, 16)
-	if err != nil {
-		http.Error(w, "invalid parameter fid", 400)
-		return
-	}
+	defer s.handleError(terr, span)
 
-	ctx := r.Context()
+	span.LogFields(
+		slog.Uint32("feature_id", req.Id),
+		slog.Uint32("loop_index", req.LoopIndex),
+	)
 
-	f, err := s.Get(ctx, &insidesvc.GetRequest{
-		Id:        uint32(fid),
-		LoopIndex: uint32(lidx),
-	})
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	// get the s2 cells from the index
-	v, err := s.storage.Get(insideout.CellKey(uint32(fid)), nil)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	dec := cbor.NewDecoder(bytes.NewReader(v))
-	cs := &insideout.CellsStorage{}
-	if err := dec.Decode(cs); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	f.Properties[insidesvc.CellsInProperty] = &structpb.Value{
-		Kind: &structpb.Value_StringValue{
-			StringValue: insideout.CellUnionToToken(cs.CellsIn[lidx]),
-		},
-	}
-
-	f.Properties[insidesvc.CellsOutProperty] = &structpb.Value{
-		Kind: &structpb.Value_StringValue{
-			StringValue: insideout.CellUnionToToken(cs.CellsOut[lidx]),
-		},
-	}
-	w.Header().Set("Content-Type", "application/json")
-
-	m := jsonpb.Marshaler{}
-	err = m.Marshal(w, f)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-}
-
-// WithinHandler HTTP 1.1 Handler to query within returns GeoJSON
-func (s *Server) WithinHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-
-	lat, err := strconv.ParseFloat(vars["lat"], 64)
-	if err != nil {
-		http.Error(w, "invalid parameter lat", 400)
-		return
-	}
-	lng, err := strconv.ParseFloat(vars["lng"], 64)
-	if err != nil {
-		http.Error(w, "invalid parameter lat", 400)
-		return
-	}
-
-	ctx := r.Context()
-
-	resp, err := s.Within(ctx, &insidesvc.WithinRequest{
-		Lat: lat,
-		Lng: lng,
-	})
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	fc := &geojson.FeatureCollection{}
-	for _, fres := range resp.Responses {
-		f := &geojson.Feature{}
-		ng := geom.NewPolygonFlat(geom.XY, fres.Feature.Geometry.Coordinates, []int{len(fres.Feature.Geometry.Coordinates)})
-		f.Geometry = ng
-		f.Properties = insideout.ValueToProperties(fres.Feature.Properties)
-		fc.Features = append(fc.Features, f)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json, err := fc.MarshalJSON()
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	w.Write(json)
-}
-
-func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (*insidesvc.Feature, error) {
 	fi, err := s.cache.Get(req.Id)
 	if err != nil {
 		return nil, err
@@ -335,7 +254,7 @@ func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (*insidesvc
 		return nil, err
 	}
 
-	feature := &insidesvc.Feature{
+	feature = &insidesvc.Feature{
 		Geometry: &insidesvc.Geometry{
 			Type:        insidesvc.Geometry_POLYGON,
 			Coordinates: insideout.CoordinatesFromLoops(l),
@@ -389,4 +308,21 @@ func (s *Server) IndexStab(lat, lng float64) ([]*insideout.Feature, error) {
 		}
 	}
 	return res, nil
+}
+
+func (s *Server) handleError(terr error, span opentracing.Span) {
+	if terr != nil {
+		// do not log not found as error
+		if status, ok := status.FromError(terr); ok && status.Code() == codes.NotFound {
+			level.Debug(s.logger).Log("error", terr)
+			return
+		}
+		errorCounter.Inc()
+		span.LogFields(
+			slog.String("error", terr.Error()),
+		)
+		span.SetTag("error", true)
+
+		level.Error(s.logger).Log("error", terr)
+	}
 }
