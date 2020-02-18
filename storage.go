@@ -174,13 +174,13 @@ func (s *Storage) LoadIndexInfos() (*IndexInfos, error) {
 func (s *Storage) TilesHandler(w http.ResponseWriter, req *http.Request) {
 	sp := strings.Split(req.URL.Path, "/")
 
-	if len(sp) != 7 {
+	if len(sp) != 6 {
 		http.Error(w, "Invalid query", http.StatusBadRequest)
 		return
 	}
-	z, _ := strconv.Atoi(sp[4])
-	x, _ := strconv.Atoi(sp[5])
-	y, _ := strconv.Atoi(strings.Trim(sp[6], ".pbf"))
+	z, _ := strconv.Atoi(sp[3])
+	x, _ := strconv.Atoi(sp[4])
+	y, _ := strconv.Atoi(strings.Trim(sp[5], ".pbf"))
 
 	data, err := s.ReadTileData(uint8(z), uint64(x), uint64(1<<uint(z)-y-1))
 	if err != nil {

@@ -178,10 +178,10 @@ func main() {
 
 		r := mux.NewRouter()
 
-		r.HandleFunc("/api/debug/cells", debug.S2CellQueryHandler)
-		r.HandleFunc("/api/debug/get/{fid}/{loop_index}", server.DebugGetHandler)
-		r.HandleFunc("/api/debug/tiles/{z}/{x}/{y}", storage.TilesHandler)
-		r.PathPrefix("/api/debug/").Handler(http.StripPrefix("/api/debug/", http.FileServer(http.Dir("./static"))))
+		r.HandleFunc("/debug/cells", debug.S2CellQueryHandler)
+		r.HandleFunc("/debug/get/{fid}/{loop_index}", server.DebugGetHandler)
+		r.HandleFunc("/debug/tiles/{z}/{x}/{y}", storage.TilesHandler)
+		r.PathPrefix("/debug/").Handler(http.StripPrefix("/debug/", http.FileServer(http.Dir("./static"))))
 
 		r.Handle("/api/within/{lat}/{lng}",
 			metricsMwr.Handler("/api/within/lat/lng",
