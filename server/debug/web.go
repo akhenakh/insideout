@@ -16,6 +16,10 @@ import (
 func S2CellQueryHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	sval := query.Get("cells")
+	if sval == "" {
+		http.Error(w, "invalid parameters", 400)
+		return
+	}
 	cells := strings.Split(sval, ",")
 	if len(cells) == 0 {
 		http.Error(w, "invalid parameters", 400)

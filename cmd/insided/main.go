@@ -79,7 +79,6 @@ func main() {
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	// catch termination
 	interrupt := make(chan os.Signal, 1)
@@ -172,16 +171,17 @@ func main() {
 
 	// API web server
 	g.Go(func() error {
-		// web
-
 		// metrics middleware.
 		metricsMwr := middleware.New(middleware.Config{
 			Recorder: metrics.NewRecorder(metrics.Config{Prefix: appName}),
 		})
-		r := mux.NewRouter()
-		r.HandleFunc("/api/debug/cells", debug.S2CellQueryHandler)
 
+		r := mux.NewRouter()
+
+		r.HandleFunc("/api/debug/cells", debug.S2CellQueryHandler)
 		r.HandleFunc("/api/debug/get/{fid}/{loop_index}", server.DebugGetHandler)
+		r.HandleFunc("/api/debug/tiles/{z}/{x}/{y}", storage.TilesHandler)
+		r.PathPrefix("/api/debug/").Handler(http.StripPrefix("/api/debug/", http.FileServer(http.Dir("./static"))))
 
 		r.Handle("/api/within/{lat}/{lng}",
 			metricsMwr.Handler("/api/within/lat/lng",
@@ -210,7 +210,7 @@ func main() {
 			Addr:         fmt.Sprintf(":%d", *httpAPIPort),
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
-			Handler:      handlers.CompressHandler(r),
+			Handler:      handlers.CompressHandler(handlers.CORS()(r)),
 		}
 		level.Info(logger).Log("msg", fmt.Sprintf("HTTP API server listening at :%d", *httpAPIPort))
 

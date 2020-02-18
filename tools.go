@@ -19,6 +19,9 @@ const (
 	featurePrefix byte = 'F'
 	cellPrefix    byte = 'C'
 	infoKey       byte = 'i'
+	// reserved T & t for tiles
+	TilesURLPrefix byte = 't'
+	TilesPrefix    byte = 'T'
 
 	InsideTreeStrategy = "insidetree"
 	DBStrategy         = "db"

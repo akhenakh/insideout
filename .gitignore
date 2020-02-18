@@ -20,3 +20,4 @@
 /cmd/insided/insided
 /cmd/insidecli/insidecli
 out.db/
+/cmd/mbtilestokv/mbtilestokv

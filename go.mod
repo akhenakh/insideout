@@ -15,6 +15,7 @@ require (
 	github.com/gorilla/mux v1.7.3
 	github.com/grpc-ecosystem/go-grpc-middleware v1.1.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/namsral/flag v1.7.4-pre
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/pkg/errors v0.9.1
@@ -25,4 +26,5 @@ require (
 	golang.org/x/net v0.0.0-20190620200207-3b0461eec859
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	google.golang.org/grpc v1.27.0
+	gopkg.in/yaml.v2 v2.2.7 // indirect
 )
