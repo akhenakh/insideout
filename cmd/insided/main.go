@@ -190,6 +190,9 @@ func main() {
 		r.HandleFunc("/healthz", func(w http.ResponseWriter, request *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 
+			ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+			defer cancel()
+
 			resp, err := healthServer.Check(ctx, &healthpb.HealthCheckRequest{
 				Service: fmt.Sprintf("grpc.health.v1.%s", appName)},
 			)
