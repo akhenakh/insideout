@@ -75,6 +75,9 @@ func (s *Storage) LoadFeature(id uint32) (*Feature, error) {
 	k := FeatureKey(id)
 	v, err := s.Get(k, nil)
 	if err != nil {
+		if err == leveldb.ErrNotFound {
+			return nil, fmt.Errorf("feature id not found: %d", id)
+		}
 		return nil, err
 	}
 	dec := cbor.NewDecoder(bytes.NewReader(v))

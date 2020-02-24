@@ -78,8 +78,8 @@ func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stdout))
 	logger = log.With(logger, "caller", log.Caller(5), "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "app", appName)
-	//logger = level.NewFilter(logger, level.AllowAll())
-	logger = level.NewFilter(logger, level.AllowInfo())
+	logger = level.NewFilter(logger, level.AllowAll())
+	//logger = level.NewFilter(logger, level.AllowInfo())
 	stdlog.SetOutput(log.NewStdlibAdapter(logger))
 
 	level.Info(logger).Log("msg", "Starting app", "version", version)
@@ -152,7 +152,7 @@ func main() {
 				// value is the feature id: current count, the polygon index in a multipolygon: fi
 				v := make([]byte, 6)
 				binary.BigEndian.PutUint32(v, count)
-				binary.BigEndian.PutUint16(v, uint16(fi))
+				binary.BigEndian.PutUint16(v[4:], uint16(fi))
 				// append to existing if any
 				ev, err := storage.Get(insideout.InsideKey(c), nil)
 				if err != nil {
@@ -181,7 +181,7 @@ func main() {
 				// value is the feature id: current count, the polygon index in a multipolygon: fi
 				v := make([]byte, 6)
 				binary.BigEndian.PutUint32(v, count)
-				binary.BigEndian.PutUint16(v, uint16(fi))
+				binary.BigEndian.PutUint16(v[4:], uint16(fi))
 				// append to existing if any
 				ev, err := storage.Get(insideout.OutsideKey(c), nil)
 				if err != nil {
@@ -232,6 +232,7 @@ func main() {
 			"msg", "stored FeatureStorage",
 			"feature_properties", f.Properties,
 			"loop_count", len(fs.LoopsBytes),
+			"inside_loop_id", count,
 		)
 
 		err = storage.Write(batch, nil)

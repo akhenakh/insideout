@@ -108,6 +108,10 @@ func (s *Server) WithinHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fc := &geojson.FeatureCollection{}
+	if len(resp.Responses) == 0 {
+		http.Error(w, "{\"msg\": \"no features found at this location\"}", 404)
+		return
+	}
 	for _, fres := range resp.Responses {
 		f := &geojson.Feature{}
 		ng := geom.NewPolygonFlat(geom.XY, fres.Feature.Geometry.Coordinates, []int{len(fres.Feature.Geometry.Coordinates)})

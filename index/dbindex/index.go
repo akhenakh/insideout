@@ -66,7 +66,7 @@ func (idx *Index) Stab(lat, lng float64) (insideout.IndexResponse, error) {
 		// read back the feature id and polygon index uint32 + uint16
 		for i := 0; i < len(v); i += 4 + 2 {
 			res := insideout.FeatureIndexResponse{}
-			res.ID = binary.BigEndian.Uint32(v[i:])
+			res.ID = binary.BigEndian.Uint32(v[i : i+4])
 			res.Pos = binary.BigEndian.Uint16(v[i+4:])
 			mi[res] = struct{}{}
 			if idx.opts.StopOnInsideFound {
@@ -103,7 +103,7 @@ func (idx *Index) Stab(lat, lng float64) (insideout.IndexResponse, error) {
 		// read back the feature id and polygon index uint32 + uint16
 		for i := 0; i < len(v); i += 4 + 2 {
 			res := insideout.FeatureIndexResponse{}
-			res.ID = binary.BigEndian.Uint32(v[i:])
+			res.ID = binary.BigEndian.Uint32(v[i : i+4])
 			res.Pos = binary.BigEndian.Uint16(v[i+4:])
 			// remove any answer matching inside
 			if _, ok := mi[res]; !ok {
