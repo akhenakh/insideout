@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.2.1/css/ol.css" type="text/css">
+    <style>
+        .map {
+            height: 500px;
+            width: 700px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.2.1/build/ol.js"></script>
+    <title>Debug Map</title>
+</head>
+<body>
+<h2>Debug Map</h2>
+<div id="map" class="map"></div>
+<table>
+    <tbody id="infos"></tbody>
+</table>
+<script type="text/javascript">
+    var vectorSource = new ol.source.Vector({
+        format: new ol.format.GeoJSON()
+    });
+
+    var vectorLayer = new ol.layer.Vector({
+        source: vectorSource,
+        style: new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: 'red',
+                width: 2
+            }),
+            fill: new ol.style.Fill({
+                color: 'rgba(255, 0, 0, 0.1)'
+            })
+        })
+    });
+
+    var map = new ol.Map({
+        target: 'map',
+        layers: [
+            new ol.layer.Tile({
+                source: new ol.source.OSM()
+            })
+        ],
+        view: new ol.View({
+            center: ol.proj.fromLonLat([2.2, 48.8]),
+            zoom: 11
+        })
+    });
+
+    map.addLayer(vectorLayer);
+
+    map.on('singleclick', function(evt) {
+        vectorSource.clear();
+        var infos = document.getElementById('infos');
+        infos.innerHTML = "";
+
+        var coordinates = ol.proj.transform(evt.coordinate, 'EPSG:3857', 'EPSG:4326');
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', "/api/within/" + coordinates[1] + "/" + coordinates[0], true);
+        xhr.onload = function() {
+            if (xhr.status !== 200) {
+                return;
+            }
+            var geojsonFormat = new ol.format.GeoJSON();
+            var features = geojsonFormat.readFeatures(xhr.responseText, {featureProjection:"EPSG:3857"});
+            vectorSource.addFeatures(features);
+
+            for (var j=0; j < features.length; j++) {
+                const f = features[j];
+                var props = f.getProperties();
+                Object.keys(props).forEach(function(key) {
+                    if (key == "geometry") return;
+                    var tr = "<tr>";
+                    var val = props[key];
+                    tr += "<td>" + key + "</td>" + "<td>" + val.toString() + "</td></tr>";
+                    infos.innerHTML += tr;
+                });
+            }
+        };
+        xhr.send();
+    });
+
+</script>
+</body>
+</html>
