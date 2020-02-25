@@ -85,6 +85,9 @@
                 return;
             }
             let data = JSON.parse(xhrData.responseText);
+            infos.innerHTML += "<td>Inside Cells</td>" + "<td>" + data.properties.insided_cells_in + "</td></tr>";
+            infos.innerHTML += "<td>Outside Cells</td>" + "<td>" + data.properties.insided_cells_out + "</td></tr>";
+
             insideCellsDebug(data.properties.insided_cells_in);
             outsideCellsDebug(data.properties.insided_cells_out);
         };
@@ -175,9 +178,6 @@
                     var val = props[key];
                     if (key === "insided_fid") {
                         tr += "<td>" + key + "</td>" + "<td><a id=\"debugClick\" onclick=\"fetchDebugFeature(" + val.toString() + "," + props["insided_loop_index"].toString() +")\" href=\"#\">" +  val.toString() + "</a></td></tr>";
-
-                        //tr += "<td>" + key + "</td>" + "<td><a id=\"debugClick\" href=\"/debug/get/" + val.toString() + "/" + props["insided_loop_index"] + "\">" +  val.toString() + "</a></td></tr>";
-                        console.log(tr);
                     } else {
                         tr += "<td>" + key + "</td>" + "<td>" + val.toString() + "</td></tr>";
                     }

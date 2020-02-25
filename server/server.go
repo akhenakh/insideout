@@ -197,6 +197,12 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (resp
 			return nil, err
 		}
 		feature.Properties = prop
+		feature.Properties[insidesvc.LoopIndexProperty] = &structpb.Value{
+			Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.Pos)},
+		}
+		feature.Properties[insidesvc.FeatureIDProperty] = &structpb.Value{
+			Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.ID)},
+		}
 
 		fresp := &insidesvc.FeatureResponse{
 			Id:      fid.ID,
