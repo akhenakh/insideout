@@ -4,8 +4,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.2.1/css/ol.css" type="text/css">
     <style>
         .map {
-            height: 500px;
-            width: 700px;
+            height: 600px;
+            width: 800px;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.2.1/build/ol.js"></script>
@@ -18,12 +18,15 @@
     <tbody id="infos"></tbody>
 </table>
 <script type="text/javascript">
-    var vectorSource = new ol.source.Vector({
+
+    // the geojson for the polygon
+    var polyVectorSource = new ol.source.Vector({
         format: new ol.format.GeoJSON()
     });
 
-    var vectorLayer = new ol.layer.Vector({
-        source: vectorSource,
+    // layer for the polygon
+    var polyVectorLayer = new ol.layer.Vector({
+        source: polyVectorSource,
         style: new ol.style.Style({
             stroke: new ol.style.Stroke({
                 color: 'red',
@@ -34,6 +37,96 @@
             })
         })
     });
+
+    // the geojson for the inside Cells
+    var insideCellsVectorSource = new ol.source.Vector({
+        format: new ol.format.GeoJSON()
+    });
+
+    // layer for the insideCells
+    var insideCellsVectorLayer = new ol.layer.Vector({
+        source: insideCellsVectorSource,
+        style: new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: 'blue',
+                width: 2
+            }),
+        })
+    });
+
+
+    // the geojson for the outside Cells
+    var outsideCellsVectorSource = new ol.source.Vector({
+        format: new ol.format.GeoJSON()
+    });
+
+    // layer for the outside Cells
+    var outsideCellsVectorLayer = new ol.layer.Vector({
+        source: outsideCellsVectorSource,
+        style: new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: 'green',
+                width: 2
+            }),
+        })
+    });
+
+    let infos = document.getElementById('infos');
+
+    // fetch the debug feature
+    function fetchDebugFeature(fid, loop) {
+        console.log(fid, loop);
+        const xhrData = new XMLHttpRequest();
+        xhrData.open('GET', "/debug/get/" + fid + "/" + loop, true);
+
+        xhrData.onload = function() {
+            if (xhrData.status !== 200) {
+                infos.innerHTML = "error: " + xhrData.statusText;
+                return;
+            }
+            let data = JSON.parse(xhrData.responseText);
+            insideCellsDebug(data.properties.insided_cells_in);
+            outsideCellsDebug(data.properties.insided_cells_out);
+        };
+        xhrData.send();
+    }
+
+    // display outside cells for a feature
+    function outsideCellsDebug(cells) {
+        console.log(cells);
+        const xhrData = new XMLHttpRequest();
+        xhrData.open('GET', "/debug/cells?cells=" + cells, true);
+
+        xhrData.onload = function() {
+            if (xhrData.status !== 200) {
+                infos.innerHTML = "error: " + xhrData.statusText;
+                return;
+            }
+            var geojsonFormat = new ol.format.GeoJSON();
+            var features = geojsonFormat.readFeatures(xhrData.responseText, {featureProjection:"EPSG:3857"});
+            outsideCellsVectorSource.addFeatures(features);
+        };
+        xhrData.send();
+    }
+
+    // display inside cells for a feature
+    function insideCellsDebug(cells) {
+        console.log(cells);
+        const xhrData = new XMLHttpRequest();
+        xhrData.open('GET', "/debug/cells?cells=" + cells, true);
+
+        xhrData.onload = function() {
+            if (xhrData.status !== 200) {
+                infos.innerHTML = "error: " + xhrData.statusText;
+                return;
+            }
+            var geojsonFormat = new ol.format.GeoJSON();
+            var features = geojsonFormat.readFeatures(xhrData.responseText, {featureProjection:"EPSG:3857"});
+            insideCellsVectorSource.addFeatures(features);
+        };
+        xhrData.send();
+    }
+
 
     var map = new ol.Map({
         target: 'map',
@@ -48,11 +141,16 @@
         })
     });
 
-    map.addLayer(vectorLayer);
+    map.addLayer(polyVectorLayer);
+    map.addLayer(insideCellsVectorLayer);
+    map.addLayer(outsideCellsVectorLayer);
+
 
     map.on('singleclick', function(evt) {
-        vectorSource.clear();
-        var infos = document.getElementById('infos');
+        polyVectorSource.clear();
+        insideCellsVectorSource.clear();
+        outsideCellsVectorSource.clear();
+
         infos.innerHTML = "";
 
         var coordinates = ol.proj.transform(evt.coordinate, 'EPSG:3857', 'EPSG:4326');
@@ -61,23 +159,35 @@
         xhr.open('GET', "/api/within/" + coordinates[1] + "/" + coordinates[0], true);
         xhr.onload = function() {
             if (xhr.status !== 200) {
+                infos.innerHTML = "error: " + xhr.statusText;
                 return;
             }
             var geojsonFormat = new ol.format.GeoJSON();
             var features = geojsonFormat.readFeatures(xhr.responseText, {featureProjection:"EPSG:3857"});
-            vectorSource.addFeatures(features);
+            polyVectorSource.addFeatures(features);
 
             for (var j=0; j < features.length; j++) {
                 const f = features[j];
                 var props = f.getProperties();
                 Object.keys(props).forEach(function(key) {
-                    if (key == "geometry") return;
+                    if (key === "geometry") return;
                     var tr = "<tr>";
                     var val = props[key];
-                    tr += "<td>" + key + "</td>" + "<td>" + val.toString() + "</td></tr>";
+                    if (key === "insided_fid") {
+                        tr += "<td>" + key + "</td>" + "<td><a id=\"debugClick\" onclick=\"fetchDebugFeature(" + val.toString() + "," + props["insided_loop_index"].toString() +")\" href=\"#\">" +  val.toString() + "</a></td></tr>";
+
+                        //tr += "<td>" + key + "</td>" + "<td><a id=\"debugClick\" href=\"/debug/get/" + val.toString() + "/" + props["insided_loop_index"] + "\">" +  val.toString() + "</a></td></tr>";
+                        console.log(tr);
+                    } else {
+                        tr += "<td>" + key + "</td>" + "<td>" + val.toString() + "</td></tr>";
+                    }
                     infos.innerHTML += tr;
                 });
             }
+
+        };
+        xhr.onerror = function () {
+            infos.innerHTML = "error: request failed";
         };
         xhr.send();
     });
