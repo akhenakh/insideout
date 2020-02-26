@@ -10,7 +10,9 @@
     </style>
     <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.2.1/build/ol.js"></script>
     <script src="https://unpkg.com/mapbox-gl@0.54.0/dist/mapbox-gl.js"></script>
+    <script src="/debug/ol-layerswitcher.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/mapbox-gl@0.54.0/dist/mapbox-gl.css">
+    <link rel="stylesheet" href="/debug/ol-layerswitcher.css" />
     <title>Debug Map</title>
 </head>
 <body>
@@ -40,6 +42,8 @@
     });
 
     var mbLayer = new ol.layer.Layer({
+        type: 'base',
+        title: 'Local',
         render: function(frameState) {
             var canvas = mbMap.getCanvas();
             var viewState = frameState.viewState;
@@ -110,7 +114,6 @@
             }),
         })
     });
-
 
     // the geojson for the outside Cells
     var outsideCellsVectorSource = new ol.source.Vector({
@@ -193,12 +196,36 @@
             center: ol.proj.fromLonLat([2.2, 48.8]),
             zoom: 9
         }),
-        layers: [mbLayer]
+        layers: [
+            mbLayer,
+            new ol.layer.Tile({
+                // A layer must have a title to appear in the layerswitcher
+                title: 'Stamen',
+                // Again set this layer as a base layer
+                type: 'base',
+                visible: false,
+                source: new ol.source.Stamen({
+                    layer: 'toner'
+                })
+            }),
+            new ol.layer.Tile({
+                // A layer must have a title to appear in the layerswitcher
+                title: 'OSM',
+                // Again set this layer as a base layer
+                type: 'base',
+                visible: false,
+                source: new ol.source.OSM()
+            }),
+            polyVectorLayer,
+            insideCellsVectorLayer,
+            outsideCellsVectorLayer
+        ]
     });
 
-    map.addLayer(polyVectorLayer);
-    map.addLayer(insideCellsVectorLayer);
-    map.addLayer(outsideCellsVectorLayer);
+    var layerSwitcher = new ol.control.LayerSwitcher({
+        groupSelectStyle: 'children' // Can be 'children' [default], 'group' or 'none'
+    });
+    map.addControl(layerSwitcher);
 
 
     map.on('singleclick', function(evt) {
