@@ -173,7 +173,7 @@ func (s *Storage) LoadIndexInfos() (*IndexInfos, error) {
 	return infos, nil
 }
 
-// TilesHandler serves the mbtiles at /api/debug/tiles/11/618/722.pbf
+// TilesHandler serves the mbtiles at /debug/tiles/11/618/722.pbf
 func (s *Storage) TilesHandler(w http.ResponseWriter, req *http.Request) {
 	sp := strings.Split(req.URL.Path, "/")
 

@@ -4,14 +4,18 @@ import (
 	"context"
 	"fmt"
 	stdlog "log"
+	"mime"
 	"net"
 	"net/http"
 
 	// _ "net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
+	"text/template"
 	"time"
 
 	log "github.com/go-kit/kit/log"
@@ -56,6 +60,8 @@ var (
 	grpcHealthServer  *grpc.Server
 	grpcServer        *grpc.Server
 	httpMetricsServer *http.Server
+
+	templatesNames = []string{"osm-liberty-gl.style", "planet.json", "index.html", "mapbox.html"}
 )
 
 func main() {
@@ -181,11 +187,50 @@ func main() {
 		r.HandleFunc("/debug/cells", debug.S2CellQueryHandler)
 		r.HandleFunc("/debug/get/{fid}/{loop_index}", server.DebugGetHandler)
 		r.HandleFunc("/debug/tiles/{z}/{x}/{y}", storage.TilesHandler)
-		r.PathPrefix("/debug/").Handler(http.StripPrefix("/debug/", http.FileServer(http.Dir("./static"))))
 
+		fileHandler := http.FileServer(http.Dir("./static"))
+		pathTpls := make([]string, len(templatesNames))
+		for i, name := range templatesNames {
+			pathTpls[i] = "./static/" + name
+		}
+		t, err := template.ParseFiles(pathTpls...)
+		if err != nil {
+			level.Error(logger).Log("msg", "can't parse templates", "error", err)
+			os.Exit(2)
+		}
+		r.PathPrefix("/debug/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path := strings.TrimPrefix(r.URL.Path, "/debug/")
+			if path == "" {
+				path = "index.html"
+			}
+
+			// serve file normally
+			if !isTpl(path) {
+				r.URL.Path = path
+				fileHandler.ServeHTTP(w, r)
+				return
+			}
+
+			p := map[string]interface{}{
+				"TilesURL":  fmt.Sprintf("http://%s/debug", r.Host),
+				"MaxZoom":   9,
+				"CenterLat": 48.8,
+				"CenterLng": 2.2,
+			}
+
+			ctype := mime.TypeByExtension(filepath.Ext(path))
+			w.Header().Set("Content-Type", ctype)
+
+			err = t.ExecuteTemplate(w, path, p)
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				level.Error(logger).Log("msg", "can't execute template", "error", err, "path", path)
+				return
+			}
+		})
 		r.Handle("/api/within/{lat}/{lng}",
-			metricsMwr.Handler("/api/within/lat/lng",
-				http.HandlerFunc(server.WithinHandler)))
+			handlers.CompressHandler(metricsMwr.Handler("/api/within/lat/lng",
+				http.HandlerFunc(server.WithinHandler))))
 
 		r.HandleFunc("/healthz", func(w http.ResponseWriter, request *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
@@ -213,7 +258,7 @@ func main() {
 			Addr:         fmt.Sprintf(":%d", *httpAPIPort),
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
-			Handler:      handlers.CompressHandler(handlers.CORS()(r)),
+			Handler:      handlers.CORS()(r),
 		}
 		level.Info(logger).Log("msg", fmt.Sprintf("HTTP API server listening at :%d", *httpAPIPort))
 
@@ -285,4 +330,13 @@ func main() {
 
 func bToMb(b uint64) uint64 {
 	return b / 1024 / 1024
+}
+
+func isTpl(path string) bool {
+	for _, p := range templatesNames {
+		if p == path {
+			return true
+		}
+	}
+	return false
 }
