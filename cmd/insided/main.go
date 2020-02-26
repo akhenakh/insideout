@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	stdlog "log"
 	"mime"
@@ -104,6 +105,12 @@ func main() {
 	}
 	defer clean()
 
+	infos, err := storage.LoadIndexInfos()
+	if err != nil {
+		level.Error(logger).Log("msg", "failed to read infos", "error", err)
+		os.Exit(2)
+	}
+
 	// gRPC Health Server
 	healthServer := health.NewServer()
 	g.Go(func() error {
@@ -188,7 +195,10 @@ func main() {
 		r.HandleFunc("/debug/get/{fid}/{loop_index}", server.DebugGetHandler)
 		r.HandleFunc("/debug/tiles/{z}/{x}/{y}", storage.TilesHandler)
 
+		// static file handler
 		fileHandler := http.FileServer(http.Dir("./static"))
+
+		// computing templates
 		pathTpls := make([]string, len(templatesNames))
 		for i, name := range templatesNames {
 			pathTpls[i] = "./static/" + name
@@ -198,6 +208,8 @@ func main() {
 			level.Error(logger).Log("msg", "can't parse templates", "error", err)
 			os.Exit(2)
 		}
+
+		// serving templates and static files
 		r.PathPrefix("/debug/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			path := strings.TrimPrefix(r.URL.Path, "/debug/")
 			if path == "" {
@@ -211,6 +223,7 @@ func main() {
 				return
 			}
 
+			// Templates variables
 			p := map[string]interface{}{
 				"TilesURL":  fmt.Sprintf("http://%s/debug", r.Host),
 				"MaxZoom":   9,
@@ -218,6 +231,7 @@ func main() {
 				"CenterLng": 2.2,
 			}
 
+			// change header base on content-type
 			ctype := mime.TypeByExtension(filepath.Ext(path))
 			w.Header().Set("Content-Type", ctype)
 
@@ -228,6 +242,8 @@ func main() {
 				return
 			}
 		})
+
+		// within API handler
 		r.Handle("/api/within/{lat}/{lng}",
 			handlers.CompressHandler(metricsMwr.Handler("/api/within/lat/lng",
 				http.HandlerFunc(server.WithinHandler))))
@@ -254,6 +270,13 @@ func main() {
 			w.Write(json)
 		})
 
+		r.HandleFunc("/version", func(w http.ResponseWriter, request *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			m := map[string]interface{}{"version": version, "infos": infos}
+			b, _ := json.Marshal(m)
+			w.Write(b)
+		})
+
 		httpServer = &http.Server{
 			Addr:         fmt.Sprintf(":%d", *httpAPIPort),
 			ReadTimeout:  10 * time.Second,
@@ -268,12 +291,6 @@ func main() {
 
 		return nil
 	})
-
-	infos, err := storage.LoadIndexInfos()
-	if err != nil {
-		level.Error(logger).Log("msg", "failed to read infos", "error", err)
-		os.Exit(2)
-	}
 
 	level.Info(logger).Log("msg", "read index_infos", "feature_count", infos.FeatureCount)
 
