@@ -31,6 +31,7 @@ insidecli:
 indexer:
 	cd cmd/indexer && go build $(LDFLAGS)
 
+mbtilestokv: CGO_ENABLED=1
 mbtilestokv:
 	cd cmd/mbtilestokv && go build $(LDFLAGS)
 

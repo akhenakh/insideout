@@ -62,8 +62,8 @@ var (
 
 	insideMaxLevelCover  = flag.Int("insideMaxLevelCover", 16, "Max s2 level for inside cover")
 	insideMinLevelCover  = flag.Int("insideMinLevelCover", 10, "Min s2 level for inside cover")
-	insideMaxCellsCover  = flag.Int("insideMaxCellsCover", 16, "Max s2 Cells count for inside cover")
-	outsideMaxLevelCover = flag.Int("outsideMaxLevelCover", 13, "Max s2 level for outside cover")
+	insideMaxCellsCover  = flag.Int("insideMaxCellsCover", 24, "Max s2 Cells count for inside cover")
+	outsideMaxLevelCover = flag.Int("outsideMaxLevelCover", 15, "Max s2 level for outside cover")
 	outsideMinLevelCover = flag.Int("outsideMinLevelCover", 10, "Min s2 level for outside cover")
 	outsideMaxCellsCover = flag.Int("outsideMaxCellsCover", 16, "Max s2 Cells count for outside cover")
 	warningCellsCover    = flag.Int("warningCellsCover", 1000, "warning limit cover count")
@@ -78,8 +78,8 @@ func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stdout))
 	logger = log.With(logger, "caller", log.Caller(5), "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "app", appName)
-	logger = level.NewFilter(logger, level.AllowAll())
-	//logger = level.NewFilter(logger, level.AllowInfo())
+	//logger = level.NewFilter(logger, level.AllowAll())
+	logger = level.NewFilter(logger, level.AllowInfo())
 	stdlog.SetOutput(log.NewStdlibAdapter(logger))
 
 	level.Info(logger).Log("msg", "Starting app", "version", version)
