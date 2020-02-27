@@ -98,7 +98,7 @@ func main() {
 		stdlog.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
-	storage, clean, err := insideout.NewLevelDBStorage(*dbPath, logger)
+	storage, clean, err := insideout.NewROLevelDBStorage(*dbPath, logger)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
 		os.Exit(2)

@@ -53,11 +53,29 @@ type IndexInfos struct {
 	MinCoverLevel  int
 }
 
-// NewStorage returns a cold storage using leveldb
+// NewLevelDBStorage returns a cold storage using leveldb
 func NewLevelDBStorage(path string, logger log.Logger) (*Storage, func() error, error) {
 	// Creating DB
 	o := &opt.Options{
 		Filter: filter.NewBloomFilter(10),
+	}
+	db, err := leveldb.OpenFile(path, o)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to created DB at %s: %w", path, err)
+	}
+
+	return &Storage{
+		DB:     db,
+		logger: logger,
+	}, db.Close, nil
+}
+
+// NewROLevelDBStorage returns a read only storage using leveldb
+func NewROLevelDBStorage(path string, logger log.Logger) (*Storage, func() error, error) {
+	// Creating DB
+	o := &opt.Options{
+		Filter:   filter.NewBloomFilter(10),
+		ReadOnly: true,
 	}
 	db, err := leveldb.OpenFile(path, o)
 	if err != nil {
