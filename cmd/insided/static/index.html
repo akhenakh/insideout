@@ -88,6 +88,7 @@
     // layer for the polygon
     var polyVectorLayer = new ol.layer.Vector({
         source: polyVectorSource,
+        title: 'Polygon',
         style: new ol.style.Style({
             stroke: new ol.style.Stroke({
                 color: 'red',
@@ -107,6 +108,7 @@
     // layer for the insideCells
     var insideCellsVectorLayer = new ol.layer.Vector({
         source: insideCellsVectorSource,
+        title: 'Inside Cells Index',
         style: new ol.style.Style({
             stroke: new ol.style.Stroke({
                 color: 'blue',
@@ -123,6 +125,7 @@
     // layer for the outside Cells
     var outsideCellsVectorLayer = new ol.layer.Vector({
         source: outsideCellsVectorSource,
+        title: 'Outside Cells Index',
         style: new ol.style.Style({
             stroke: new ol.style.Stroke({
                 color: 'green',
