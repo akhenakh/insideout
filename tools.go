@@ -19,6 +19,7 @@ const (
 	featurePrefix byte = 'F'
 	cellPrefix    byte = 'C'
 	infoKey       byte = 'i'
+	mapKey        byte = 'm'
 	// reserved T & t for tiles
 	TilesURLPrefix byte = 't'
 	TilesPrefix    byte = 'T'
@@ -187,6 +188,7 @@ func OutsideRangeKeys(c s2.CellID) ([]byte, []byte) {
 	return mink, maxk
 }
 
+// FeatureKey returns the key for the id
 func FeatureKey(id uint32) []byte {
 	k := make([]byte, 1+4)
 	k[0] = featurePrefix
@@ -194,6 +196,7 @@ func FeatureKey(id uint32) []byte {
 	return k
 }
 
+// CellKey returns the key for the cell id
 func CellKey(id uint32) []byte {
 	k := make([]byte, 1+4)
 	k[0] = cellPrefix
@@ -201,8 +204,14 @@ func CellKey(id uint32) []byte {
 	return k
 }
 
+// InfoKey returns the key for the info entry
 func InfoKey() []byte {
 	return []byte{infoKey}
+}
+
+// MapKey returns the key for the map entry
+func MapKey() []byte {
+	return []byte{mapKey}
 }
 
 // PropertiesToValues converts feature's properties to protobuf Value

@@ -53,6 +53,12 @@ type IndexInfos struct {
 	MinCoverLevel  int
 }
 
+// MapInfos used to store information about the map if any in DB
+type MapInfos struct {
+	CenterLat, CenterLng float64
+	MaxZoom              int
+}
+
 // NewLevelDBStorage returns a cold storage using leveldb
 func NewLevelDBStorage(path string, logger log.Logger) (*Storage, func() error, error) {
 	// Creating DB
@@ -240,4 +246,24 @@ func (infos *IndexInfos) String() string {
 		infos.IndexerVersion,
 		infos.FeatureCount,
 	)
+}
+
+// LoadMapInfos loads map infos from the DB if any
+func (s *Storage) LoadMapInfos() (*MapInfos, bool, error) {
+	v, err := s.Get(MapKey(), &opt.ReadOptions{
+		DontFillCache: true,
+	})
+	if err != nil {
+		if err == leveldb.ErrNotFound {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	dec := cbor.NewDecoder(bytes.NewReader(v))
+	mapInfos := &MapInfos{}
+	if err = dec.Decode(mapInfos); err != nil {
+		return nil, false, err
+	}
+
+	return mapInfos, true, nil
 }

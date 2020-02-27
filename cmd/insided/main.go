@@ -223,12 +223,26 @@ func main() {
 				return
 			}
 
+			mapInfos, showMap, err := storage.LoadMapInfos()
+			if err != nil {
+				level.Error(logger).Log("msg", "error reading db", "error", err)
+				os.Exit(2)
+			}
+			lat, lng := 0.0, 0.0
+			maxZoom := 8
+			if showMap {
+				lat = mapInfos.CenterLat
+				lng = mapInfos.CenterLng
+				maxZoom = mapInfos.MaxZoom
+			}
+
 			// Templates variables
 			p := map[string]interface{}{
 				"TilesURL":  fmt.Sprintf("http://%s/debug", r.Host),
-				"MaxZoom":   9,
-				"CenterLat": 48.8,
-				"CenterLng": 2.2,
+				"MaxZoom":   maxZoom,
+				"LocalMap":  showMap,
+				"CenterLat": lat,
+				"CenterLng": lng,
 			}
 
 			// change header base on content-type

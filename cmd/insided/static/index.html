@@ -21,7 +21,7 @@
     <tbody id="infos"></tbody>
 </table>
 <script type="text/javascript">
-
+    {{ if .LocalMap }}
     var mbMap = new mapboxgl.Map({
         container: 'map', // container id
         style: '{{ .TilesURL }}/osm-liberty-gl.style', // stylesheet location
@@ -79,6 +79,8 @@
             return canvas;
         }
     });
+
+    {{ end }}
 
     // the geojson for the polygon
     var polyVectorSource = new ol.source.Vector({
@@ -200,7 +202,21 @@
             zoom: 9
         }),
         layers: [
+            {{ if .LocalMap }}
             mbLayer,
+            {{ end }}
+            new ol.layer.Tile({
+                // A layer must have a title to appear in the layerswitcher
+                title: 'OSM',
+                // Again set this layer as a base layer
+                type: 'base',
+                {{ if .LocalMap }}
+                visible: false,
+                {{ else}}
+                visible: true,
+                {{ end }}
+                source: new ol.source.OSM()
+            }),
             new ol.layer.Tile({
                 // A layer must have a title to appear in the layerswitcher
                 title: 'Stamen',
@@ -210,14 +226,6 @@
                 source: new ol.source.Stamen({
                     layer: 'toner'
                 })
-            }),
-            new ol.layer.Tile({
-                // A layer must have a title to appear in the layerswitcher
-                title: 'OSM',
-                // Again set this layer as a base layer
-                type: 'base',
-                visible: false,
-                source: new ol.source.OSM()
             }),
             polyVectorLayer,
             insideCellsVectorLayer,
