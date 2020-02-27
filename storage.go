@@ -85,7 +85,7 @@ func NewROLevelDBStorage(path string, logger log.Logger) (*Storage, func() error
 	}
 	db, err := leveldb.OpenFile(path, o)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to created DB at %s: %w", path, err)
+		return nil, nil, fmt.Errorf("failed to open DB for reading at %s: %w", path, err)
 	}
 
 	return &Storage{

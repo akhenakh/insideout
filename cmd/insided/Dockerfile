@@ -1,8 +1,9 @@
-FROM gcr.io/distroless/static
+FROM gcr.io/distroless/base
 
 WORKDIR /root/
 COPY insided .
 COPY grpc_health_probe .
-COPY static/ .
-COPY out.db/ .
+ADD static /root/static
+ADD inside.db /root/inside.db
+EXPOSE 9201
 ENTRYPOINT ["./insided"]

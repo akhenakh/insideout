@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: insided
+    dataset: fr-communes-2020022
+  name: insided
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: insided
+  strategy: {}
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: metrics
+      labels:
+        app: insided
+    spec:
+      containers:
+        - image: akhenakh/insided-fr-communes:2020022
+          name: insided-fr-communes
+          readinessProbe:
+            exec:
+              command: ["/root/grpc_health_probe", "-addr=:6666"]
+            initialDelaySeconds: 2
+          livenessProbe:
+            exec:
+                command: ["/root/grpc_health_probe", "-addr=:6666"]
+            initialDelaySeconds: 2
+          resources: {}
+          env:
+            - name: HTTPMETRICSPORT
+              value: "8088"
+            - name: HTTPAPIPORT
+              value: "9201"
+            - name: GRPCPORT
+              value: "9200"
+            - name: HEALTHPORT
+              value: "6666"
+            - name: LOGLEVEL
+              value: "INFO"
+            - name: STOPONFIRSTFOUND
+              value: "true"
+            - name: STRATEGY
+              value: "db"
+          ports:
+            - containerPort: 9200
+              name: grpc
+            - containerPort: 9201
+              name: http
+            - containerPort: 6666
+              name: health
+            - containerPort: 8088
+              name: metrics

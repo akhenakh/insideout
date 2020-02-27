@@ -27,7 +27,7 @@ var (
 	maxZoom   = flag.Int("maxZoom", 9, "max zoom used for the debug map")
 
 	tilesPath = flag.String("tilesPath", "./france9.mbtiles", "mbtiles file path")
-	dbPath    = flag.String("dbPath", "./out.db", "db path out")
+	dbPath    = flag.String("dbPath", "./inside.db", "db path out")
 )
 
 func main() {

@@ -69,7 +69,7 @@ var (
 	warningCellsCover    = flag.Int("warningCellsCover", 1000, "warning limit cover count")
 
 	filePath = flag.String("filePath", "", "FeatureCollection GeoJSON file to index")
-	dbPath   = flag.String("dbPath", "out.db", "Database path")
+	dbPath   = flag.String("dbPath", "inside.db", "Database path")
 )
 
 func main() {

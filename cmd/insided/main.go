@@ -48,14 +48,14 @@ var (
 	version = "no version from LDFLAGS"
 
 	cacheCount      = flag.Int("cacheCount", 100, "Features count to cache")
-	dbPath          = flag.String("dbPath", "out.db", "Database path")
+	dbPath          = flag.String("dbPath", "inside.db", "Database path")
 	httpMetricsPort = flag.Int("httpMetricsPort", 8088, "http port")
 	httpAPIPort     = flag.Int("httpAPIPort", 9201, "http API port")
 	grpcPort        = flag.Int("grpcPort", 9200, "gRPC API port")
 	healthPort      = flag.Int("healthPort", 6666, "grpc health port")
 
 	stopOnFirstFound = flag.Bool("stopOnFirstFound", false, "Stop in first feature found")
-	strategy         = flag.String("strategy", insideout.InsideTreeStrategy, "Strategy to use: insidetree|shapeindex|db")
+	strategy         = flag.String("strategy", insideout.DBStrategy, "Strategy to use: insidetree|shapeindex|db")
 
 	httpServer        *http.Server
 	grpcHealthServer  *grpc.Server
@@ -237,8 +237,13 @@ func main() {
 			}
 
 			// Templates variables
+			proto := "http"
+			if r.Header.Get("X-Forwarded-Proto") == "https" {
+				proto = "https"
+			}
+
 			p := map[string]interface{}{
-				"TilesURL":  fmt.Sprintf("http://%s/debug", r.Host),
+				"TilesURL":  fmt.Sprintf("%s://%s/debug", proto, r.Host),
 				"MaxZoom":   maxZoom,
 				"LocalMap":  showMap,
 				"CenterLat": lat,
