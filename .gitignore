@@ -20,6 +20,6 @@
 /cmd/insided/insided
 /cmd/insided/inside.db/
 /cmd/insidecli/insidecli
-out.db/
+inside.db/
 /cmd/mbtilestokv/mbtilestokv
 /cmd/insided/grpc_health_probe
