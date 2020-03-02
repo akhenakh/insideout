@@ -94,7 +94,44 @@ func New(storage *insideout.Storage, logger log.Logger, healthServer *health.Ser
 }
 
 // Within query exposed via gRPC
-func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (resp *insidesvc.WithinResponse, terr error) {
+func (s *Server) RectSearch(ctx context.Context, req *insidesvc.RectSearchRequest) (resp *insidesvc.FeaturesResponse, terr error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Within")
+	defer span.Finish()
+
+	defer s.handleError(terr, span)
+
+	idxResp, err := s.idx.Rect(req.Urlat, req.Urlng, req.Bllat, req.Bllng)
+	if err != nil {
+		return nil, err
+	}
+
+	level.Debug(s.logger).Log("msg", "querying rect",
+		"urlat", req.Urlat,
+		"urlng", req.Urlng,
+		"bllat", req.Bllat,
+		"bllng", req.Bllng,
+		"idx_resp", idxResp,
+	)
+
+	span.LogFields(
+		slog.Float64("urlat", req.Urlat),
+		slog.Float64("urlng", req.Urlng),
+		slog.Float64("bllat", req.Bllat),
+		slog.Float64("bllng", req.Bllng),
+	)
+
+	var fresps []*insidesvc.FeatureResponse
+
+	resp = &insidesvc.FeaturesResponse{
+		Responses: fresps,
+	}
+
+	return resp, nil
+
+}
+
+// Within query exposed via gRPC
+func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (resp *insidesvc.FeaturesResponse, terr error) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "Within")
 	defer span.Finish()
 
@@ -216,11 +253,7 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (resp
 		"lng", req.Lng,
 		"features_count", len(fresps))
 
-	resp = &insidesvc.WithinResponse{
-		Point: &insidesvc.Point{
-			Lat: req.Lat,
-			Lng: req.Lng,
-		},
+	resp = &insidesvc.FeaturesResponse{
 		Responses: fresps,
 	}
 

@@ -86,3 +86,12 @@ func (idx *Index) Stab(lat, lng float64) (insideout.IndexResponse, error) {
 	}
 	return idxResp, nil
 }
+
+func (idx *Index) Rect(urlat, urlng, bllat, bllng float64) (resp insideout.IndexResponse, err error) {
+	var idxResp insideout.IndexResponse
+
+	rect := s2.RectFromLatLng(s2.LatLngFromDegrees(bllat, bllng))
+	rect = rect.AddPoint(s2.LatLngFromDegrees(urlat, urlng))
+
+	return idxResp, nil
+}

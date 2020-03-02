@@ -18,6 +18,9 @@ var (
 type Index interface {
 	// Stab returns ids of polygon we are inside and polygons we may be inside
 	Stab(lat, lng float64) (IndexResponse, error)
+
+	// Rect query returns ids of polygon intersecting rect
+	Rect(urlat, urlng, bllat, bllng float64) (IndexResponse, error)
 }
 
 // IndexResponse a response to find back a feature from an index

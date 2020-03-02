@@ -4,7 +4,9 @@ import "google/protobuf/struct.proto";
 
 service Inside {
     //  Stab returns features containing lat lng
-    rpc Within(WithinRequest) returns (WithinResponse) {}
+    rpc Within(WithinRequest) returns (FeaturesResponse) {}
+    // returns features intersecting rect
+    rpc RectSearch(RectSearchRequest) returns (FeaturesResponse) {}
     // Get returns a feature by its internal ID and polygon index
     rpc Get(GetRequest) returns (Feature) {}
 }
@@ -17,19 +19,26 @@ message WithinRequest {
     // saving extra bytes
     bool remove_geometries = 3;
 
-    // comma separated list of property so returns to save extra bytes, leave empty for all
+    // comma separated list of property to returns to save extra bytes, leave empty for all
     string select_properties = 4;
 }
 
-message WithinResponse {
-    Point point = 1;
-    repeated FeatureResponse responses = 2;
+message RectSearchRequest {
+    double urlat = 1; // upper lat
+    double urlng = 2; // upper lng
+    double bllat = 3; // bottom lat
+    double bllng = 4; // bottom lng
+
+    // return features geometries or not
+    // saving extra bytes
+    bool remove_geometries = 5;
+
+    // comma separated list of property to returns to save extra bytes, leave empty for all
+    string select_properties = 6;
 }
 
-message GetRequest {
-    uint32 id = 1;
-    // internally stored as uint16
-    uint32 loop_index = 2;
+message FeaturesResponse {
+    repeated FeatureResponse responses = 1;
 }
 
 message FeatureResponse {
@@ -37,6 +46,12 @@ message FeatureResponse {
     uint32 id = 1;
 
     Feature feature = 3;
+}
+
+message GetRequest {
+    uint32 id = 1;
+    // internally stored as uint16
+    uint32 loop_index = 2;
 }
 
 message Feature {

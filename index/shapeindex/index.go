@@ -2,6 +2,7 @@ package shapeindex
 
 import (
 	"bytes"
+	"errors"
 	"sync"
 
 	"github.com/golang/geo/s2"
@@ -14,6 +15,7 @@ type Index struct {
 	sync.Mutex
 	*s2.ShapeIndex
 	*s2.ContainsPointQuery
+	*s2.CrossingEdgeQuery
 }
 
 type indexedLoop struct {
@@ -69,4 +71,8 @@ func (idx *Index) Stab(lat, lng float64) (insideout.IndexResponse, error) {
 		idxResp.IDsInside = append(idxResp.IDsInside, il.FeatureIndexResponse)
 	}
 	return idxResp, nil
+}
+
+func (idx *Index) Rect(urlat, urlng, bllat, bllng float64) (resp insideout.IndexResponse, err error) {
+	return resp, errors.New("shapeindex does not implement Rect")
 }
