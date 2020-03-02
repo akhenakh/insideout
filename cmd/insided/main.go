@@ -8,8 +8,6 @@ import (
 	"mime"
 	"net"
 	"net/http"
-
-	// _ "net/http/pprof"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -18,6 +16,8 @@ import (
 	"syscall"
 	"text/template"
 	"time"
+
+	// _ "net/http/pprof"
 
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -49,7 +49,7 @@ var (
 	version = "no version from LDFLAGS"
 
 	logLevel        = flag.String("logLevel", "INFO", "DEBUG|INFO|WARN|ERROR")
-	cacheCount      = flag.Int("cacheCount", 100, "Features count to cache")
+	cacheCount      = flag.Int("cacheCount", 200, "Features count to cache")
 	dbPath          = flag.String("dbPath", "inside.db", "Database path")
 	httpMetricsPort = flag.Int("httpMetricsPort", 8088, "http port")
 	httpAPIPort     = flag.Int("httpAPIPort", 9201, "http API port")
@@ -96,9 +96,10 @@ func main() {
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	go func() {
-		stdlog.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
+	// pprof
+	// go func() {
+	// 	stdlog.Println(http.ListenAndServe("localhost:6060", nil))
+	// }()
 
 	storage, clean, err := insideout.NewROLevelDBStorage(*dbPath, logger)
 	if err != nil {
@@ -170,6 +171,8 @@ func main() {
 			level.Error(logger).Log("msg", "gRPC server: failed to listen", "error", err)
 			os.Exit(2)
 		}
+
+		grpc_prometheus.EnableHandlingTimeHistogram()
 
 		grpcServer = grpc.NewServer(
 			// MaxConnectionAge is just to avoid long connection, to facilitate load balancing

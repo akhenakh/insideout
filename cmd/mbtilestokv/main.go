@@ -40,6 +40,8 @@ func main() {
 	logger = log.With(logger, "app", appName)
 	logger = loglevel.NewLevelFilterFromString(logger, *logLevel)
 
+	level.Info(logger).Log("msg", "starting converting tiles", "version", version)
+
 	database, err := sql.Open("sqlite3", *tilesPath)
 	if err != nil {
 		level.Error(logger).Log("msg", "can't read mbtiles sqlite", "error", err)

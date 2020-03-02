@@ -23,3 +23,4 @@
 inside.db/
 /cmd/mbtilestokv/mbtilestokv
 /cmd/insided/grpc_health_probe
+/cmd/loadtester/loadtester
