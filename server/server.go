@@ -211,7 +211,7 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (resp
 		fresps = append(fresps, fresp)
 	}
 
-	level.Info(s.logger).Log("msg", "result stab",
+	level.Debug(s.logger).Log("msg", "result stab",
 		"lat", req.Lat,
 		"lng", req.Lng,
 		"features_count", len(fresps))

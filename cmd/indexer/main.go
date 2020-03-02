@@ -20,6 +20,7 @@ import (
 	"github.com/twpayne/go-geom/encoding/geojson"
 
 	"github.com/akhenakh/insideout"
+	"github.com/akhenakh/insideout/loglevel"
 )
 
 /*
@@ -60,6 +61,7 @@ const appName = "indexer"
 var (
 	version = "no version from LDFLAGS"
 
+	logLevel             = flag.String("logLevel", "INFO", "DEBUG|INFO|WARN|ERROR")
 	insideMaxLevelCover  = flag.Int("insideMaxLevelCover", 16, "Max s2 level for inside cover")
 	insideMinLevelCover  = flag.Int("insideMinLevelCover", 10, "Min s2 level for inside cover")
 	insideMaxCellsCover  = flag.Int("insideMaxCellsCover", 24, "Max s2 Cells count for inside cover")
@@ -78,8 +80,7 @@ func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stdout))
 	logger = log.With(logger, "caller", log.Caller(5), "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "app", appName)
-	//logger = level.NewFilter(logger, level.AllowAll())
-	logger = level.NewFilter(logger, level.AllowInfo())
+	logger = loglevel.NewLevelFilterFromString(logger, *logLevel)
 	stdlog.SetOutput(log.NewStdlibAdapter(logger))
 
 	level.Info(logger).Log("msg", "Starting app", "version", version)

@@ -15,12 +15,14 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 
 	"github.com/akhenakh/insideout"
+	"github.com/akhenakh/insideout/loglevel"
 )
 
 const appName = "mbtilestokv"
 
 var (
-	version = "no version from LDFLAGS"
+	version  = "no version from LDFLAGS"
+	logLevel = flag.String("logLevel", "INFO", "DEBUG|INFO|WARN|ERROR")
 
 	centerLat = flag.Float64("centerLat", 48.8, "Latitude center used for the debug map")
 	centerLng = flag.Float64("centerLng", 2.2, "Longitude center used for the debug map")
@@ -36,7 +38,7 @@ func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stdout))
 	logger = log.With(logger, "caller", log.Caller(5), "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "app", appName)
-	logger = level.NewFilter(logger, level.AllowAll())
+	logger = loglevel.NewLevelFilterFromString(logger, *logLevel)
 
 	database, err := sql.Open("sqlite3", *tilesPath)
 	if err != nil {

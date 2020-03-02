@@ -38,6 +38,7 @@ import (
 
 	"github.com/akhenakh/insideout"
 	"github.com/akhenakh/insideout/insidesvc"
+	"github.com/akhenakh/insideout/loglevel"
 	"github.com/akhenakh/insideout/server"
 	"github.com/akhenakh/insideout/server/debug"
 )
@@ -47,6 +48,7 @@ const appName = "insided"
 var (
 	version = "no version from LDFLAGS"
 
+	logLevel        = flag.String("logLevel", "INFO", "DEBUG|INFO|WARN|ERROR")
 	cacheCount      = flag.Int("cacheCount", 100, "Features count to cache")
 	dbPath          = flag.String("dbPath", "inside.db", "Database path")
 	httpMetricsPort = flag.Int("httpMetricsPort", 8088, "http port")
@@ -71,7 +73,7 @@ func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stdout))
 	logger = log.With(logger, "caller", log.Caller(5), "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "app", appName)
-	logger = level.NewFilter(logger, level.AllowAll())
+	logger = loglevel.NewLevelFilterFromString(logger, *logLevel)
 
 	stdlog.SetOutput(log.NewStdlibAdapter(logger))
 
