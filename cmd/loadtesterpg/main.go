@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	stdlog "log"
 	"math/rand"
@@ -12,28 +13,38 @@ import (
 	"time"
 
 	//_ "net/http/pprof"
-
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	_ "github.com/lib/pq"
 	"github.com/namsral/flag"
 	"github.com/rcrowley/go-metrics"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/balancer/roundrobin"
 
-	"github.com/akhenakh/insideout/insidesvc"
 	"github.com/akhenakh/insideout/loglevel"
 )
 
-const appName = "loadtester"
+/*
+SELECT * FROM polytest
+    WHERE ST_Contains(wkb_geometry,
+    	ST_Transform(
+    		ST_GeomFromText('POINT(2.2 48.8)', 4326), 4326
+    	)
+    )
+*/
+
+const appName = "loadtesterpg"
 
 var (
 	logLevel = flag.String("logLevel", "INFO", "DEBUG|INFO|WARN|ERROR")
 
-	insideURI = flag.String("insideURI", "localhost:9200", "insided grpc URI")
-	latMin    = flag.Float64("latMin", 49.10, "Lat min")
-	lngMin    = flag.Float64("lngMin", -1.10, "Lng min")
-	latMax    = flag.Float64("latMax", 46.63, "Lat max")
-	lngMax    = flag.Float64("lngMax", 5.5, "Lng max")
+	dbHost = flag.String("dbHost", "localhost", "database hostname")
+	dbUser = flag.String("dbUser", "testgis", "database username")
+	dbPass = flag.String("dbPass", "testgis", "database password")
+	dbName = flag.String("dbName", "testgis", "database name")
+
+	latMin = flag.Float64("latMin", 49.10, "Lat min")
+	lngMin = flag.Float64("lngMin", -1.10, "Lng min")
+	latMax = flag.Float64("latMax", 46.63, "Lat max")
+	lngMax = flag.Float64("lngMax", 5.5, "Lng max")
 )
 
 func main() {
@@ -53,16 +64,6 @@ func main() {
 
 	rand.Seed(time.Now().UnixNano())
 
-	conn, err := grpc.Dial(*insideURI,
-		grpc.WithInsecure(),
-		grpc.WithBalancerName(roundrobin.Name), //nolint:staticcheck
-	)
-	if err != nil {
-		level.Error(logger).Log("msg", "error dialing", "error", err)
-		os.Exit(2)
-	}
-
-	c := insidesvc.NewInsideClient(conn)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// catch termination
@@ -76,40 +77,55 @@ func main() {
 		defer wg.Done()
 		tm := metrics.NewTimer()
 
-		req := &insidesvc.WithinRequest{
-			Lat:              *latMin,
-			Lng:              *latMax,
-			RemoveGeometries: true,
+		connStr := fmt.Sprintf("user=%s password=%s dbname=%s host=%s sslmode=disable",
+			*dbUser, *dbPass, *dbName, *dbHost)
+
+		db, err := sql.Open("postgres", connStr)
+		if err != nil {
+			level.Error(logger).Log("msg", "error opening", "error", err)
+			os.Exit(2)
 		}
 		for {
+			select {
+			case <-ctx.Done():
+				break
+			default:
+			}
 			ctx, rcancel := context.WithTimeout(ctx, 200*time.Millisecond)
 
 			t := time.Now()
 			lat := *latMin + rand.Float64()*(*latMax-*latMin)
 			lng := *lngMin + rand.Float64()*(*lngMax-*lngMin)
-			req.Lat = lat
-			req.Lng = lng
-
-			resps, err := c.Within(ctx, req)
+			q := fmt.Sprintf(`SELECT insee, nom, wikipedia, surf_ha FROM polytest
+			WHERE ST_Contains(wkb_geometry,
+				ST_Transform(ST_GeomFromText('POINT(%f %f)', 4326), 4326)
+			)`, lng, lat)
+			rows, err := db.QueryContext(ctx, q)
 			if err != nil {
-				level.Error(logger).Log("msg", "error with request", "error", err)
+				level.Error(logger).Log("msg", "sql query error", "error", err)
 				rcancel()
 				break
 			}
-			tm.UpdateSince(t)
 
-			rcancel()
-
-			for _, fresp := range resps.Responses {
+			for rows.Next() {
+				var insee, nom, wikipedia, surf_ha string
+				if err := rows.Scan(&insee, &nom, &wikipedia, &surf_ha); err != nil {
+					level.Error(logger).Log("msg", "sql row scan error", "error", err)
+					rcancel()
+					break
+				}
 				level.Debug(logger).Log(
 					"msg", "found feature",
-					"fid", fresp.Id,
-					"properties", fresp.Feature.Properties,
+					"insee", insee,
+					"name", nom,
 					"lat", lat,
 					"lng", lng,
 				)
 			}
+			tm.UpdateSince(t)
+			rcancel()
 		}
+
 		fmt.Printf("count %d rate mean %.0f/s rate1 %.0f/s 99p %.0f\n",
 			tm.Count(), tm.RateMean(), tm.Rate1(), tm.Percentile(99.0))
 	}()

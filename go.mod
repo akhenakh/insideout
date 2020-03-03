@@ -15,6 +15,7 @@ require (
 	github.com/gorilla/mux v1.7.3
 	github.com/grpc-ecosystem/go-grpc-middleware v1.1.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/lib/pq v1.0.0
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/namsral/flag v1.7.4-pre
 	github.com/opentracing/opentracing-go v1.1.0
