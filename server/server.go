@@ -76,11 +76,7 @@ func New(storage insideout.Store, logger log.Logger, healthServer *health.Server
 		}
 		idx = shapeidx
 	case insideout.DBStrategy:
-		dbidx, err := dbindex.New(storage, dbindex.Options{StopOnInsideFound: opts.StopOnFirstFound})
-		if err != nil {
-			level.Error(logger).Log("msg", "failed to read storage", "error", err, "strategy", opts.Strategy)
-			os.Exit(2)
-		}
+		dbidx := dbindex.New(storage, dbindex.Options{StopOnInsideFound: opts.StopOnFirstFound})
 		idx = dbidx
 	case insideout.PostgisIndexStrategy:
 		dbidx, err := postgis.New(opts.SQLHostname, opts.SQLUsername, opts.SQLPassword, opts.SQLDBName)
@@ -121,6 +117,7 @@ func (s *Server) feature(id uint32) (*insideout.Feature, error) {
 		s.cache.Set(id, lf, 1)
 		return lf, nil
 	}
+
 	return fi.(*insideout.Feature), nil
 }
 

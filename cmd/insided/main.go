@@ -17,7 +17,7 @@ import (
 	"text/template"
 	"time"
 
-	// _ "net/http/pprof"
+	_ "net/http/pprof"
 
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -43,6 +43,7 @@ import (
 	"github.com/akhenakh/insideout/server/debug"
 	"github.com/akhenakh/insideout/storage/badger"
 	"github.com/akhenakh/insideout/storage/leveldb"
+	"github.com/akhenakh/insideout/storage/pogreb"
 )
 
 const appName = "insided"
@@ -105,9 +106,9 @@ func main() {
 	g, ctx := errgroup.WithContext(ctx)
 
 	// pprof
-	// go func() {
-	// 	stdlog.Println(http.ListenAndServe("localhost:6060", nil))
-	// }()
+	go func() {
+		stdlog.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	var storage insideout.Store
 	switch *dbEngine {
@@ -126,6 +127,14 @@ func main() {
 			os.Exit(2)
 		}
 		storage = bstorage
+		defer clean()
+	case "pogreb":
+		pstorage, clean, err := pogreb.NewROStorage(*dbPath, logger)
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
+			os.Exit(2)
+		}
+		storage = pstorage
 		defer clean()
 	default:
 		level.Error(logger).Log("msg", "unknown engine", "engine", *dbEngine)

@@ -51,7 +51,7 @@ func NewROStorage(path string, logger log.Logger) (*Storage, func() error, error
 	opts := badger.LSMOnlyOptions(path)
 	opts.ValueLogLoadingMode = options.FileIO
 	opts.ReadOnly = true
-	//opts.KeepL0InMemory = false
+	//opts.KeepL0InMemory = false option for badger v2
 	opts.Logger = nil
 	db, err := badger.Open(opts)
 	if err != nil {
@@ -147,7 +147,7 @@ func (s *Storage) LoadAllFeatures(add func(*insideout.FeatureStorage, uint32) er
 
 // LoadFeaturesCells loads CellsStorage from DB into idx
 // only useful to fill in memory tree indexes
-func (s *Storage) LoadFeaturesCells(add func(*insideout.CellsStorage, uint32)) error {
+func (s *Storage) LoadFeaturesCells(add func([]s2.CellUnion, []s2.CellUnion, uint32)) error {
 	err := s.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchSize = 100
@@ -167,7 +167,7 @@ func (s *Storage) LoadFeaturesCells(add func(*insideout.CellsStorage, uint32)) e
 					return err
 				}
 
-				add(cs, id)
+				add(cs.CellsIn, cs.CellsOut, id)
 				return nil
 			}); err != nil {
 				return err
@@ -263,4 +263,10 @@ func (s *Storage) LoadCellStorage(id uint32) (*insideout.CellsStorage, error) {
 		return nil, err
 	}
 	return cs, nil
+}
+
+func (s *Storage) StabDB(lat, lng float64, StopOnInsideFound bool) (insideout.IndexResponse, error) {
+	var idxResp insideout.IndexResponse
+
+	return idxResp, errors.New("not implemented")
 }

@@ -1,4 +1,4 @@
-package leveldb
+package pogreb
 
 import (
 	"bytes"
@@ -7,13 +7,11 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/akrylysov/pogreb"
 	"github.com/fxamacker/cbor"
 	log "github.com/go-kit/kit/log"
 	"github.com/golang/geo/s2"
 	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/filter"
-	"github.com/syndtr/goleveldb/leveldb/opt"
-	"github.com/syndtr/goleveldb/leveldb/util"
 
 	"github.com/akhenakh/insideout"
 )
@@ -28,60 +26,42 @@ var (
 
 // Storage cold storage
 type Storage struct {
-	*leveldb.DB
-	logger        log.Logger
-	MinCoverLevel int
+	*pogreb.DB
+	logger log.Logger
 }
 
-// NewStorage returns a cold storage using leveldb
+// NewStorage returns a cold storage using pogreb
 func NewStorage(path string, logger log.Logger) (*Storage, func() error, error) {
 	// Creating DB
-	o := &opt.Options{
-		Filter: filter.NewBloomFilter(10),
-	}
-	db, err := leveldb.OpenFile(path, o)
+	db, err := pogreb.Open(path, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to created DB at %s: %w", path, err)
 	}
 
-	s := &Storage{
+	return &Storage{
 		DB:     db,
 		logger: logger,
-	}
-
-	return s, db.Close, nil
+	}, db.Close, nil
 }
 
-// NewROStorage returns a read only storage using leveldb
+// NewROStorage returns a read only storage using pogreb
 func NewROStorage(path string, logger log.Logger) (*Storage, func() error, error) {
 	// Creating DB
-	o := &opt.Options{
-		Filter:   filter.NewBloomFilter(10),
-		ReadOnly: true,
-	}
-	db, err := leveldb.OpenFile(path, o)
+	db, err := pogreb.Open(path, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to open DB for reading at %s: %w", path, err)
 	}
 
-	s := &Storage{
+	return &Storage{
 		DB:     db,
 		logger: logger,
-	}
-
-	infos, err := s.LoadIndexInfos()
-	if err != nil {
-		return nil, nil, err
-	}
-	s.MinCoverLevel = infos.MinCoverLevel
-
-	return s, db.Close, nil
+	}, db.Close, nil
 }
 
 // LoadFeature loads one feature from the DB
 func (s *Storage) LoadFeature(id uint32) (*insideout.Feature, error) {
 	k := insideout.FeatureKey(id)
-	v, err := s.Get(k, nil)
+	v, err := s.Get(k)
 	if err != nil {
 		if err == leveldb.ErrNotFound {
 			return nil, fmt.Errorf("feature id not found: %d", id)
@@ -113,15 +93,22 @@ func (s *Storage) LoadFeature(id uint32) (*insideout.Feature, error) {
 // LoadAllFeatures loads FeatureStorage from DB into idx
 // only useful to fill in memory shapeindex
 func (s *Storage) LoadAllFeatures(add func(*insideout.FeatureStorage, uint32) error) error {
-	iter := s.NewIterator(util.BytesPrefix([]byte{insideout.FeaturePrefix()}), &opt.ReadOptions{
-		DontFillCache: true,
-	})
-	for iter.Next() {
+	it := s.Items()
+	for {
 		// read back FeatureStorage
-		key := iter.Key()
+		key, val, err := it.Next()
+		if err != nil {
+			if err != pogreb.ErrIterationDone {
+				return err
+			}
+			break
+		}
+		// we only want keys starting with feature prefix
+		if key[0] != insideout.FeaturePrefix() {
+			continue
+		}
 		id := binary.BigEndian.Uint32(key[1:])
-		v := iter.Value()
-		dec := cbor.NewDecoder(bytes.NewReader(v))
+		dec := cbor.NewDecoder(bytes.NewReader(val))
 		fs := featureStoragePool.Get().(*insideout.FeatureStorage)
 		if err := dec.Decode(fs); err != nil {
 			featureStoragePool.Put(fs)
@@ -134,22 +121,28 @@ func (s *Storage) LoadAllFeatures(add func(*insideout.FeatureStorage, uint32) er
 		}
 		featureStoragePool.Put(fs)
 	}
-	iter.Release()
-	return iter.Error()
+	return nil
 }
 
 // LoadFeaturesCells loads CellsStorage from DB into idx
 // only useful to fill in memory tree indexes
 func (s *Storage) LoadFeaturesCells(add func([]s2.CellUnion, []s2.CellUnion, uint32)) error {
-	iter := s.NewIterator(util.BytesPrefix([]byte{insideout.CellPrefix()}), &opt.ReadOptions{
-		DontFillCache: true,
-	})
-	for iter.Next() {
+	it := s.Items()
+	for {
 		// read back FeatureStorage
-		key := iter.Key()
+		key, val, err := it.Next()
+		if err != nil {
+			if err != pogreb.ErrIterationDone {
+				return err
+			}
+			break
+		}
+		// we only want keys starting with feature prefix
+		if key[0] != insideout.CellPrefix() {
+			continue
+		}
 		id := binary.BigEndian.Uint32(key[1:])
-		v := iter.Value()
-		dec := cbor.NewDecoder(bytes.NewReader(v))
+		dec := cbor.NewDecoder(bytes.NewReader(val))
 		cs := &insideout.CellsStorage{}
 		if err := dec.Decode(cs); err != nil {
 			return err
@@ -157,15 +150,12 @@ func (s *Storage) LoadFeaturesCells(add func([]s2.CellUnion, []s2.CellUnion, uin
 
 		add(cs.CellsIn, cs.CellsOut, id)
 	}
-	iter.Release()
-	return iter.Error()
+	return nil
 }
 
 // LoadMapInfos loads map infos from the DB if any
 func (s *Storage) LoadMapInfos() (*insideout.MapInfos, bool, error) {
-	v, err := s.Get(insideout.MapKey(), &opt.ReadOptions{
-		DontFillCache: true,
-	})
+	v, err := s.Get(insideout.MapKey())
 	if err != nil {
 		if err == leveldb.ErrNotFound {
 			return nil, false, nil
@@ -183,9 +173,7 @@ func (s *Storage) LoadMapInfos() (*insideout.MapInfos, bool, error) {
 
 // LoadIndexInfos loads index infos from the DB
 func (s *Storage) LoadIndexInfos() (*insideout.IndexInfos, error) {
-	v, err := s.Get(insideout.InfoKey(), &opt.ReadOptions{
-		DontFillCache: true,
-	})
+	v, err := s.Get(insideout.InfoKey())
 	if err != nil {
 		if err == leveldb.ErrNotFound {
 			return nil, errors.New("can't find infos entries, invalid DB")
@@ -204,7 +192,7 @@ func (s *Storage) LoadIndexInfos() (*insideout.IndexInfos, error) {
 // LoadCellStorage loads cell storage from
 func (s *Storage) LoadCellStorage(id uint32) (*insideout.CellsStorage, error) {
 	// get the s2 cells from the index
-	v, err := s.Get(insideout.CellKey(id), nil)
+	v, err := s.Get(insideout.CellKey(id))
 	if err != nil {
 		return nil, err
 	}
@@ -220,83 +208,5 @@ func (s *Storage) LoadCellStorage(id uint32) (*insideout.CellsStorage, error) {
 func (s *Storage) StabDB(lat, lng float64, StopOnInsideFound bool) (insideout.IndexResponse, error) {
 	var idxResp insideout.IndexResponse
 
-	ll := s2.LatLngFromDegrees(lat, lng)
-	p := s2.PointFromLatLng(ll)
-	c := s2.CellIDFromLatLng(ll)
-	cLookup := s2.CellFromPoint(p).ID().Parent(s.MinCoverLevel)
-
-	startKey, stopKey := insideout.InsideRangeKeys(cLookup)
-	iter := s.NewIterator(&util.Range{Start: startKey, Limit: stopKey}, &opt.ReadOptions{
-		DontFillCache: true,
-	})
-	defer iter.Release()
-
-	mi := make(map[insideout.FeatureIndexResponse]struct{})
-
-	for iter.Next() {
-		k := iter.Key()
-		cr := s2.CellID(binary.BigEndian.Uint64(k[1:]))
-		if !cr.Contains(c) {
-			continue
-		}
-		v := iter.Value()
-		// read back the feature id and polygon index uint32 + uint16
-		for i := 0; i < len(v); i += 4 + 2 {
-			res := insideout.FeatureIndexResponse{}
-			res.ID = binary.BigEndian.Uint32(v[i : i+4])
-			res.Pos = binary.BigEndian.Uint16(v[i+4:])
-			mi[res] = struct{}{}
-			if StopOnInsideFound {
-				idxResp.IDsInside = append(idxResp.IDsInside, res)
-				return idxResp, nil
-			}
-		}
-	}
-
-	// dedup
-	for res := range mi {
-		idxResp.IDsInside = append(idxResp.IDsInside, res)
-	}
-
-	if err := iter.Error(); err != nil {
-		return idxResp, err
-	}
-
-	startKey, stopKey = insideout.OutsideRangeKeys(cLookup)
-	oiter := s.NewIterator(&util.Range{Start: startKey, Limit: stopKey}, &opt.ReadOptions{
-		DontFillCache: true,
-	})
-	defer oiter.Release()
-
-	mo := make(map[insideout.FeatureIndexResponse]struct{})
-
-	for oiter.Next() {
-		k := oiter.Key()
-		cr := s2.CellID(binary.BigEndian.Uint64(k[1:]))
-		if !cr.Contains(c) {
-			continue
-		}
-		v := oiter.Value()
-		// read back the feature id and polygon index uint32 + uint16
-		for i := 0; i < len(v); i += 4 + 2 {
-			res := insideout.FeatureIndexResponse{}
-			res.ID = binary.BigEndian.Uint32(v[i : i+4])
-			res.Pos = binary.BigEndian.Uint16(v[i+4:])
-			// remove any answer matching inside
-			if _, ok := mi[res]; !ok {
-				mo[res] = struct{}{}
-			}
-		}
-	}
-
-	// dedup
-	for res := range mo {
-		idxResp.IDsMayBeInside = append(idxResp.IDsMayBeInside, res)
-	}
-
-	if err := oiter.Error(); err != nil {
-		return idxResp, err
-	}
-
-	return idxResp, nil
+	return idxResp, errors.New("not implemented")
 }

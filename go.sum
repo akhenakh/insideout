@@ -9,6 +9,8 @@ github.com/OneOfOne/xxhash v1.2.2 h1:KMrpdQIwFcEqXDklaen+P1axHaj9BSKzvpUUfnHldSE
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/akhenakh/insidetree v0.0.0-20200117162430-1aba251a8a6a h1:QFmJUE66otz2jJCoXD3g9nHEAPxe2rRqzD8hNJRvpeQ=
 github.com/akhenakh/insidetree v0.0.0-20200117162430-1aba251a8a6a/go.mod h1:9kPyv1cbhV0xQdJ4pAjv3jZa5ZFKbSmrp89IJ4PzSVc=
+github.com/akrylysov/pogreb v0.8.3 h1:sRk9//kwmtG4fVNYtBh3HB0S3oNvYxBfBa8S6XSsjyQ=
+github.com/akrylysov/pogreb v0.8.3/go.mod h1:pNs6QmpQ1UlTJKDezuRWmaqkgUE2TuU0YTWyqJZ7+lI=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=

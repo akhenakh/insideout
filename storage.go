@@ -11,10 +11,11 @@ import (
 type Store interface {
 	LoadFeature(id uint32) (*Feature, error)
 	LoadAllFeatures(add func(*FeatureStorage, uint32) error) error
-	LoadFeaturesCells(add func(*CellsStorage, uint32)) error
+	LoadFeaturesCells(add func([]s2.CellUnion, []s2.CellUnion, uint32)) error
 	LoadCellStorage(id uint32) (*CellsStorage, error)
 	LoadIndexInfos() (*IndexInfos, error)
 	LoadMapInfos() (*MapInfos, bool, error)
+	StabDB(lat, lng float64, StopOnInsideFound bool) (IndexResponse, error)
 }
 
 type TileStore interface {
