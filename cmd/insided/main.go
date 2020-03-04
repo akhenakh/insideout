@@ -42,6 +42,7 @@ import (
 	"github.com/akhenakh/insideout/server"
 	"github.com/akhenakh/insideout/server/debug"
 	"github.com/akhenakh/insideout/storage/badger"
+	"github.com/akhenakh/insideout/storage/leveldb"
 )
 
 const appName = "insided"
@@ -52,6 +53,7 @@ var (
 	logLevel        = flag.String("logLevel", "INFO", "DEBUG|INFO|WARN|ERROR")
 	cacheCount      = flag.Int("cacheCount", 200, "Features count to cache")
 	dbPath          = flag.String("dbPath", "inside.db", "Database path")
+	dbEngine        = flag.String("dbEngine", "leveldb", "Database engine: leveldb|badger")
 	httpMetricsPort = flag.Int("httpMetricsPort", 8088, "http port")
 	httpAPIPort     = flag.Int("httpAPIPort", 9201, "http API port")
 	grpcPort        = flag.Int("grpcPort", 9200, "gRPC API port")
@@ -107,12 +109,28 @@ func main() {
 	// 	stdlog.Println(http.ListenAndServe("localhost:6060", nil))
 	// }()
 
-	storage, clean, err := badger.NewROStorage(*dbPath, logger)
-	if err != nil {
-		level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
+	var storage insideout.Store
+	switch *dbEngine {
+	case "leveldb":
+		ldbstorage, clean, err := leveldb.NewROStorage(*dbPath, logger)
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
+			os.Exit(2)
+		}
+		storage = ldbstorage
+		defer clean()
+	case "badger":
+		bstorage, clean, err := badger.NewROStorage(*dbPath, logger)
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
+			os.Exit(2)
+		}
+		storage = bstorage
+		defer clean()
+	default:
+		level.Error(logger).Log("msg", "unknown engine", "engine", *dbEngine)
 		os.Exit(2)
 	}
-	defer clean()
 
 	infos, err := storage.LoadIndexInfos()
 	if err != nil {
@@ -217,7 +235,7 @@ func main() {
 
 		r.HandleFunc("/debug/cells", debug.S2CellQueryHandler)
 		r.HandleFunc("/debug/get/{fid}/{loop_index}", server.DebugGetHandler)
-		r.HandleFunc("/debug/tiles/{z}/{x}/{y}", storage.TilesHandler)
+		//r.HandleFunc("/debug/tiles/{z}/{x}/{y}", storage.TilesHandler)
 
 		// static file handler
 		fileHandler := http.FileServer(http.Dir("./static"))

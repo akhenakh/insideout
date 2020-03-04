@@ -14,10 +14,10 @@ type Store interface {
 	LoadFeaturesCells(add func(*CellsStorage, uint32)) error
 	LoadCellStorage(id uint32) (*CellsStorage, error)
 	LoadIndexInfos() (*IndexInfos, error)
+	LoadMapInfos() (*MapInfos, bool, error)
 }
 
 type TileStore interface {
-	LoadMapInfos() (*MapInfos, bool, error)
 	TilesHandler(w http.ResponseWriter, req *http.Request)
 	ReadTileData(z uint8, x uint64, y uint64) ([]byte, error)
 }

@@ -10,7 +10,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/dgraph-io/badger/v2"
+	"github.com/dgraph-io/badger"
 	"github.com/fxamacker/cbor"
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -316,4 +316,9 @@ func main() {
 
 	level.Info(logger).Log("msg", "stored index_infos", "feature_count", infos.FeatureCount)
 
+	err = storage.Flatten(1)
+	if err != nil {
+		level.Error(logger).Log("msg", "failed Flatten DB", "error", err, "db_path", *dbPath)
+		os.Exit(2)
+	}
 }

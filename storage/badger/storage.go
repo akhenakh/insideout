@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/dgraph-io/badger/v2"
-	"github.com/dgraph-io/badger/v2/options"
+	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/options"
 	"github.com/fxamacker/cbor"
 	log "github.com/go-kit/kit/log"
 	"github.com/golang/geo/s2"
@@ -33,7 +33,7 @@ type Storage struct {
 // NewStorage returns a cold storage using leveldb
 func NewStorage(path string, logger log.Logger) (*Storage, func() error, error) {
 	// Creating DB
-	opts := badger.DefaultOptions(path)
+	opts := badger.LSMOnlyOptions(path)
 	db, err := badger.Open(opts)
 	if err != nil {
 		return nil, nil, err
@@ -48,9 +48,10 @@ func NewStorage(path string, logger log.Logger) (*Storage, func() error, error) 
 // NewROStorage returns a read only storage using leveldb
 func NewROStorage(path string, logger log.Logger) (*Storage, func() error, error) {
 	// Creating DB
-	opts := badger.DefaultOptions(path)
+	opts := badger.LSMOnlyOptions(path)
 	opts.ValueLogLoadingMode = options.FileIO
 	opts.ReadOnly = true
+	//opts.KeepL0InMemory = false
 	opts.Logger = nil
 	db, err := badger.Open(opts)
 	if err != nil {
@@ -65,7 +66,7 @@ func NewROStorage(path string, logger log.Logger) (*Storage, func() error, error
 
 // LoadFeature loads one feature from the DB
 func (s *Storage) LoadFeature(id uint32) (*insideout.Feature, error) {
-	var b []byte
+	fs := &insideout.FeatureStorage{}
 	err := s.View(func(txn *badger.Txn) error {
 		k := insideout.FeatureKey(id)
 		item, err := txn.Get(k)
@@ -75,18 +76,16 @@ func (s *Storage) LoadFeature(id uint32) (*insideout.Feature, error) {
 			}
 			return err
 		}
-		_, err = item.ValueCopy(b)
+		err = item.Value(func(v []byte) error {
+			dec := cbor.NewDecoder(bytes.NewReader(v))
+			return dec.Decode(fs)
+		})
 		if err != nil {
 			return err
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, err
-	}
-	dec := cbor.NewDecoder(bytes.NewReader(b))
-	fs := &insideout.FeatureStorage{}
-	if err = dec.Decode(fs); err != nil {
 		return nil, err
 	}
 
@@ -188,7 +187,7 @@ func (s *Storage) LoadMapInfos() (*insideout.MapInfos, bool, error) {
 		if err != nil {
 			return err
 		}
-		_, err = item.ValueCopy(b)
+		b, err = item.ValueCopy(nil)
 		if err != nil {
 			return err
 		}
@@ -217,7 +216,7 @@ func (s *Storage) LoadIndexInfos() (*insideout.IndexInfos, error) {
 		if err != nil {
 			return err
 		}
-		_, err = item.ValueCopy(b)
+		b, err = item.ValueCopy(nil)
 		if err != nil {
 			return err
 		}
@@ -248,7 +247,7 @@ func (s *Storage) LoadCellStorage(id uint32) (*insideout.CellsStorage, error) {
 		if err != nil {
 			return err
 		}
-		_, err = item.ValueCopy(b)
+		b, err = item.ValueCopy(nil)
 		if err != nil {
 			return err
 		}

@@ -94,7 +94,7 @@ func New(storage insideout.Store, logger log.Logger, healthServer *health.Server
 	// cache
 	cache, err := ristretto.NewCache(&ristretto.Config{
 		NumCounters: int64(opts.CacheCount) * 10, // number of keys to track frequency
-		MaxCost:     int64(opts.CacheCount),      // maximum cost of cache 1000 items.
+		MaxCost:     int64(opts.CacheCount),      // maximum cost of cache
 		BufferItems: 64,                          // number of keys per Get buffer.
 	})
 	if err != nil {
