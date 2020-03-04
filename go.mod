@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/akhenakh/insidetree v0.0.0-20200117162430-1aba251a8a6a
+	github.com/dgraph-io/badger/v2 v2.0.2
 	github.com/dgraph-io/ristretto v0.0.2
 	github.com/fxamacker/cbor v1.5.0
 	github.com/go-kit/kit v0.9.0

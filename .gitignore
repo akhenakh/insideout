@@ -17,6 +17,8 @@
 .idea/
 /cmd/leveldbindexer/inside.db/
 /cmd/leveldbindexer/leveldbindexer
+/cmd/badgerindexer/inside.db/
+/cmd/badgerindexer/badgerindexer
 /cmd/insided/insided
 /cmd/insided/inside.db/
 /cmd/insidecli/insidecli

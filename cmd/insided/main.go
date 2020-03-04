@@ -41,7 +41,7 @@ import (
 	"github.com/akhenakh/insideout/loglevel"
 	"github.com/akhenakh/insideout/server"
 	"github.com/akhenakh/insideout/server/debug"
-	"github.com/akhenakh/insideout/storage/leveldb"
+	"github.com/akhenakh/insideout/storage/badger"
 )
 
 const appName = "insided"
@@ -107,7 +107,7 @@ func main() {
 	// 	stdlog.Println(http.ListenAndServe("localhost:6060", nil))
 	// }()
 
-	storage, clean, err := leveldb.NewROStorage(*dbPath, logger)
+	storage, clean, err := badger.NewROStorage(*dbPath, logger)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
 		os.Exit(2)
