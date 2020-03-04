@@ -104,6 +104,7 @@ func main() {
 			if err != nil {
 				level.Error(logger).Log("msg", "sql query error", "error", err)
 				rcancel()
+				cancel()
 				break
 			}
 
@@ -112,6 +113,7 @@ func main() {
 				if err := rows.Scan(&insee, &nom, &wikipedia, &surf_ha); err != nil {
 					level.Error(logger).Log("msg", "sql row scan error", "error", err)
 					rcancel()
+					cancel()
 					break
 				}
 				level.Debug(logger).Log(

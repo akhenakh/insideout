@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/bluele/gcache"
+	"github.com/dgraph-io/ristretto"
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/golang/geo/s2"
@@ -37,7 +37,7 @@ var (
 type Server struct {
 	storage      *insideout.Storage
 	logger       log.Logger
-	cache        gcache.Cache
+	cache        *ristretto.Cache
 	healthServer *health.Server
 	idx          insideout.Index
 }
@@ -91,18 +91,36 @@ func New(storage *insideout.Storage, logger log.Logger, healthServer *health.Ser
 	}
 
 	// cache
-	gc := gcache.New(opts.CacheCount).ARC().LoaderFunc(func(key interface{}) (interface{}, error) {
-		id := key.(uint32)
-		return storage.LoadFeature(id)
-	}).Build()
+	cache, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: int64(opts.CacheCount) * 10, // number of keys to track frequency
+		MaxCost:     int64(opts.CacheCount),      // maximum cost of cache 1000 items.
+		BufferItems: 64,                          // number of keys per Get buffer.
+	})
+	if err != nil {
+		panic(err)
+	}
 
 	return &Server{
 		storage:      storage,
 		logger:       logger,
-		cache:        gc,
+		cache:        cache,
 		healthServer: healthServer,
 		idx:          idx,
 	}
+}
+
+// feature fetch feature from cache or
+func (s *Server) feature(id uint32) (*insideout.Feature, error) {
+	fi, found := s.cache.Get(id)
+	if !found {
+		lf, err := s.storage.LoadFeature(id)
+		if err != nil {
+			return nil, err
+		}
+		s.cache.Set(id, lf, 1)
+		return lf, nil
+	}
+	return fi.(*insideout.Feature), nil
 }
 
 // Within query exposed via gRPC
@@ -131,12 +149,10 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (resp
 	var fresps []*insidesvc.FeatureResponse
 
 	for _, fid := range idxResp.IDsInside {
-		fi, err := s.cache.Get(fid.ID)
+		f, err := s.feature(fid.ID)
 		if err != nil {
 			return nil, err
 		}
-
-		f := fi.(*insideout.Feature)
 		level.Debug(s.logger).Log("msg", "Found inside feature",
 			"fid", fid.ID,
 			"properties", f.Properties,
@@ -174,12 +190,11 @@ func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (resp
 
 	p := s2.PointFromLatLng(s2.LatLngFromDegrees(req.Lat, req.Lng))
 	for _, fid := range idxResp.IDsMayBeInside {
-		fi, err := s.cache.Get(fid.ID)
+		f, err := s.feature(fid.ID)
 		if err != nil {
 			return nil, err
 		}
 
-		f := fi.(*insideout.Feature)
 		level.Debug(s.logger).Log("msg", "Found maybe inside feature",
 			"fid", fid.ID,
 			"properties", f.Properties,
@@ -250,16 +265,14 @@ func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (feature *i
 		slog.Uint32("loop_index", req.LoopIndex),
 	)
 
-	fi, err := s.cache.Get(req.Id)
+	f, err := s.feature(req.Id)
 	if err != nil {
 		return nil, err
 	}
 
-	if fi == nil {
+	if f == nil {
 		return nil, status.Error(codes.NotFound, "can't found feature")
 	}
-
-	f := fi.(*insideout.Feature)
 
 	if req.LoopIndex >= uint32(len(f.Loops)) {
 		return nil, status.Error(codes.NotFound, "loop index out of range")
@@ -298,11 +311,10 @@ func (s *Server) IndexStab(lat, lng float64) ([]*insideout.Feature, error) {
 		return nil, err
 	}
 	for _, fid := range idxResp.IDsInside {
-		fi, err := s.cache.Get(fid.ID)
+		f, err := s.feature(fid.ID)
 		if err != nil {
 			return nil, err
 		}
-		f := fi.(*insideout.Feature)
 		level.Debug(s.logger).Log("msg", "Found inside feature",
 			"fid", fid.ID,
 			"properties", f.Properties,
@@ -311,11 +323,10 @@ func (s *Server) IndexStab(lat, lng float64) ([]*insideout.Feature, error) {
 	}
 
 	for _, fid := range idxResp.IDsMayBeInside {
-		fi, err := s.cache.Get(fid.ID)
+		f, err := s.feature(fid.ID)
 		if err != nil {
 			return nil, err
 		}
-		f := fi.(*insideout.Feature)
 		l := f.Loops[fid.Pos]
 		if l.ContainsPoint(s2.PointFromLatLng(s2.LatLngFromDegrees(lat, lng))) {
 			level.Debug(s.logger).Log("msg", "Found outside + PIP feature",

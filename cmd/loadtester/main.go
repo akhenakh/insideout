@@ -94,6 +94,7 @@ func main() {
 			if err != nil {
 				level.Error(logger).Log("msg", "error with request", "error", err)
 				rcancel()
+				cancel()
 				break
 			}
 			tm.UpdateSince(t)
