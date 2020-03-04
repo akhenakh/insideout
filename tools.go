@@ -215,6 +215,16 @@ func MapKey() []byte {
 	return []byte{mapKey}
 }
 
+// CellPrefix returns the key prefix for cells entry
+func CellPrefix() byte {
+	return cellPrefix
+}
+
+// FeaturePrefix returns the key prefix for features entry
+func FeaturePrefix() byte {
+	return featurePrefix
+}
+
 // PropertiesToValues converts feature's properties to protobuf Value
 func PropertiesToValues(f *Feature) (map[string]*spb.Value, error) {
 	m := make(map[string]*spb.Value)

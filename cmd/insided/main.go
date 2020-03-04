@@ -41,6 +41,7 @@ import (
 	"github.com/akhenakh/insideout/loglevel"
 	"github.com/akhenakh/insideout/server"
 	"github.com/akhenakh/insideout/server/debug"
+	"github.com/akhenakh/insideout/storage/leveldb"
 )
 
 const appName = "insided"
@@ -106,7 +107,7 @@ func main() {
 	// 	stdlog.Println(http.ListenAndServe("localhost:6060", nil))
 	// }()
 
-	storage, clean, err := insideout.NewROLevelDBStorage(*dbPath, logger)
+	storage, clean, err := leveldb.NewROStorage(*dbPath, logger)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
 		os.Exit(2)
@@ -137,7 +138,7 @@ func main() {
 	})
 
 	// server
-	server := server.New(storage, logger, healthServer,
+	server, err := server.New(storage, logger, healthServer,
 		server.Options{
 			StopOnFirstFound: *stopOnFirstFound,
 			CacheCount:       *cacheCount,
@@ -147,6 +148,10 @@ func main() {
 			SQLUsername:      *dbUser,
 			SQLPassword:      *dbPass,
 		})
+	if err != nil {
+		level.Error(logger).Log("msg", "can't get a working server", "error", err)
+		os.Exit(2)
+	}
 
 	// web server metrics
 	g.Go(func() error {

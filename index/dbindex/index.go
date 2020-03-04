@@ -8,11 +8,12 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 
 	"github.com/akhenakh/insideout"
+	"github.com/akhenakh/insideout/storage/leveldb"
 )
 
 // Index using dbindex
 type Index struct {
-	storage *insideout.Storage
+	storage insideout.Store
 
 	opts Options
 
@@ -26,7 +27,7 @@ type Options struct {
 	StopOnInsideFound bool
 }
 
-func New(storage *insideout.Storage, opts Options) (*Index, error) {
+func New(storage insideout.Store, opts Options) (*Index, error) {
 	infos, err := storage.LoadIndexInfos()
 	if err != nil {
 		return nil, err
@@ -48,8 +49,9 @@ func (idx *Index) Stab(lat, lng float64) (insideout.IndexResponse, error) {
 	c := s2.CellIDFromLatLng(ll)
 	cLookup := s2.CellFromPoint(p).ID().Parent(idx.minCoverLevel)
 
+	lstorage := idx.storage.(*leveldb.Storage)
 	startKey, stopKey := insideout.InsideRangeKeys(cLookup)
-	iter := idx.storage.NewIterator(&util.Range{Start: startKey, Limit: stopKey}, &opt.ReadOptions{
+	iter := lstorage.NewIterator(&util.Range{Start: startKey, Limit: stopKey}, &opt.ReadOptions{
 		DontFillCache: true,
 	})
 	defer iter.Release()
@@ -86,7 +88,7 @@ func (idx *Index) Stab(lat, lng float64) (insideout.IndexResponse, error) {
 	}
 
 	startKey, stopKey = insideout.OutsideRangeKeys(cLookup)
-	oiter := idx.storage.NewIterator(&util.Range{Start: startKey, Limit: stopKey}, &opt.ReadOptions{
+	oiter := lstorage.NewIterator(&util.Range{Start: startKey, Limit: stopKey}, &opt.ReadOptions{
 		DontFillCache: true,
 	})
 	defer oiter.Release()

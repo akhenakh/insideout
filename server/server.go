@@ -35,7 +35,7 @@ var (
 
 // Server exposes indexes services
 type Server struct {
-	storage      *insideout.Storage
+	storage      insideout.Store
 	logger       log.Logger
 	cache        *ristretto.Cache
 	healthServer *health.Server
@@ -52,7 +52,8 @@ type Options struct {
 	SQLPassword      string
 }
 
-func New(storage *insideout.Storage, logger log.Logger, healthServer *health.Server, opts Options) *Server {
+// New returns a Server
+func New(storage insideout.Store, logger log.Logger, healthServer *health.Server, opts Options) (*Server, error) {
 	logger = log.With(logger, "component", "server")
 
 	var idx insideout.Index
@@ -97,7 +98,7 @@ func New(storage *insideout.Storage, logger log.Logger, healthServer *health.Ser
 		BufferItems: 64,                          // number of keys per Get buffer.
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	return &Server{
@@ -106,7 +107,7 @@ func New(storage *insideout.Storage, logger log.Logger, healthServer *health.Ser
 		cache:        cache,
 		healthServer: healthServer,
 		idx:          idx,
-	}
+	}, nil
 }
 
 // feature fetch feature from cache or

@@ -1,17 +1,7 @@
 package insideout
 
 import (
-	"sync"
-
 	"github.com/golang/geo/s2"
-)
-
-var (
-	featureStoragePool = sync.Pool{
-		New: func() interface{} {
-			return &FeatureStorage{}
-		},
-	}
 )
 
 // Index offers different strategy indexers to speed up queries

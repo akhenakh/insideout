@@ -1,11 +1,9 @@
 package server
 
 import (
-	"bytes"
 	"net/http"
 	"strconv"
 
-	"github.com/fxamacker/cbor"
 	"github.com/gogo/protobuf/jsonpb"
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/gorilla/mux"
@@ -44,15 +42,8 @@ func (s *Server) DebugGetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// get the s2 cells from the index
-	v, err := s.storage.Get(insideout.CellKey(uint32(fid)), nil)
+	cs, err := s.storage.LoadCellStorage(uint32(fid))
 	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	dec := cbor.NewDecoder(bytes.NewReader(v))
-	cs := &insideout.CellsStorage{}
-	if err := dec.Decode(cs); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
