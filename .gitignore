@@ -30,3 +30,5 @@ inside.db/
 /cmd/pogrebindexer/pogrebindexer
 /cmd/pogrebindexer/inside.db.index
 /cmd/pogrebindexer/inside.db
+/cmd/bboltindexer/bboltindexer
+/cmd/bboltindexer/inside.db

@@ -42,6 +42,7 @@ import (
 	"github.com/akhenakh/insideout/server"
 	"github.com/akhenakh/insideout/server/debug"
 	"github.com/akhenakh/insideout/storage/badger"
+	"github.com/akhenakh/insideout/storage/bbolt"
 	"github.com/akhenakh/insideout/storage/leveldb"
 	"github.com/akhenakh/insideout/storage/pogreb"
 )
@@ -119,6 +120,14 @@ func main() {
 			os.Exit(2)
 		}
 		storage = ldbstorage
+		defer clean()
+	case "bbolt":
+		bstorage, clean, err := bbolt.NewROStorage(*dbPath, logger)
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
+			os.Exit(2)
+		}
+		storage = bstorage
 		defer clean()
 	case "badger":
 		bstorage, clean, err := badger.NewROStorage(*dbPath, logger)

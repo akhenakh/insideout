@@ -29,6 +29,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/twpayne/go-geom v1.0.5
+	go.etcd.io/bbolt v1.3.3
 	golang.org/x/net v0.0.0-20190620200207-3b0461eec859
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	google.golang.org/grpc v1.27.0
