@@ -9,9 +9,9 @@ DATE := $(shell date -u +%Y%m%d.%H%M%S)
 LDFLAGS = -trimpath -ldflags "-X=main.version=$(VERSION)-$(DATE)"
 CGO_ENABLED=0
 
-targets = insided indexer insidecli mbtilestokv loadtester
+targets = insided leveldbindexer insidecli mbtilestokv loadtester
 
-.PHONY: all lint test insided insidecli indexer clean mbtilestokv loadtester
+.PHONY: all lint test insided insidecli leveldbindexer clean mbtilestokv loadtester
 
 all: test $(targets)
 
@@ -28,8 +28,8 @@ insided:
 insidecli:
 	cd cmd/insidecli && go build $(LDFLAGS)
 
-indexer:
-	cd cmd/indexer && go build $(LDFLAGS)
+leveldbindexer:
+	cd cmd/leveldbindexer && go build $(LDFLAGS)
 
 loadtester:
 	cd cmd/loadtester && go build $(LDFLAGS)
@@ -39,7 +39,7 @@ mbtilestokv:
 	cd cmd/mbtilestokv && go build $(LDFLAGS)
 
 clean:
-	rm -f cmd/indexer/indexer
+	rm -f cmd/leveldbindexer/leveldbindexer
 	rm -f cmd/insided/insided
 	rm -f cmd/insidecli/insidecli
 	rm -f cmd/mbtilestokv/mbtilestokv

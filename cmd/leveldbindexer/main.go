@@ -10,6 +10,7 @@ import (
 	"path"
 	"time"
 
+	sleveldb "github.com/akhenakh/insideout/storage/leveldb"
 	"github.com/fxamacker/cbor"
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -102,7 +103,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	storage, clean, err := insideout.NewLevelDBStorage(*dbPath, logger)
+	storage, clean, err := sleveldb.NewStorage(*dbPath, logger)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
 		os.Exit(2)

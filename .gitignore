@@ -15,8 +15,8 @@
 # vendor/
 
 .idea/
-/cmd/indexer/inside.db/
-/cmd/indexer/indexer
+/cmd/leveldbindexer/inside.db/
+/cmd/leveldbindexer/leveldbindexer
 /cmd/insided/insided
 /cmd/insided/inside.db/
 /cmd/insidecli/insidecli
