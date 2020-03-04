@@ -1,4 +1,5 @@
 ## Strategy
+
 - full s2 index, really fast, huge memory consumption (communes france dataset)
 
   ```

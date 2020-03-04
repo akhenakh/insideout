@@ -19,6 +19,7 @@ import (
 
 	"github.com/akhenakh/insideout"
 	"github.com/akhenakh/insideout/index/dbindex"
+	"github.com/akhenakh/insideout/index/postgis"
 	"github.com/akhenakh/insideout/index/shapeindex"
 	"github.com/akhenakh/insideout/index/treeindex"
 	"github.com/akhenakh/insideout/insidesvc"
@@ -45,6 +46,10 @@ type Options struct {
 	StopOnFirstFound bool
 	CacheCount       int
 	Strategy         string
+	SQLHostname      string
+	SQLDBName        string
+	SQLUsername      string
+	SQLPassword      string
 }
 
 func New(storage *insideout.Storage, logger log.Logger, healthServer *health.Server, opts Options) *Server {
@@ -71,6 +76,13 @@ func New(storage *insideout.Storage, logger log.Logger, healthServer *health.Ser
 		idx = shapeidx
 	case insideout.DBStrategy:
 		dbidx, err := dbindex.New(storage, dbindex.Options{StopOnInsideFound: opts.StopOnFirstFound})
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to read storage", "error", err, "strategy", opts.Strategy)
+			os.Exit(2)
+		}
+		idx = dbidx
+	case insideout.PostgisIndexStrategy:
+		dbidx, err := postgis.New(opts.SQLHostname, opts.SQLUsername, opts.SQLPassword, opts.SQLDBName)
 		if err != nil {
 			level.Error(logger).Log("msg", "failed to read storage", "error", err, "strategy", opts.Strategy)
 			os.Exit(2)

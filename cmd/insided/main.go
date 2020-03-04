@@ -56,8 +56,13 @@ var (
 	grpcPort        = flag.Int("grpcPort", 9200, "gRPC API port")
 	healthPort      = flag.Int("healthPort", 6666, "grpc health port")
 
+	dbHost = flag.String("dbHost", "localhost", "database hostname use with postgis index only")
+	dbUser = flag.String("dbUser", "testgis", "database username use with postgis index only")
+	dbPass = flag.String("dbPass", "testgis", "database password use with postgis index only")
+	dbName = flag.String("dbName", "testgis", "database name use with postgis index only")
+
 	stopOnFirstFound = flag.Bool("stopOnFirstFound", false, "Stop in first feature found")
-	strategy         = flag.String("strategy", insideout.DBStrategy, "Strategy to use: insidetree|shapeindex|db")
+	strategy         = flag.String("strategy", insideout.DBStrategy, "Strategy to use: insidetree|shapeindex|db|postgis")
 
 	httpServer        *http.Server
 	grpcHealthServer  *grpc.Server
@@ -78,7 +83,7 @@ func main() {
 	stdlog.SetOutput(log.NewStdlibAdapter(logger))
 
 	switch *strategy {
-	case insideout.InsideTreeStrategy, insideout.DBStrategy, insideout.ShapeIndexStrategy:
+	case insideout.InsideTreeStrategy, insideout.DBStrategy, insideout.ShapeIndexStrategy, insideout.PostgisIndexStrategy:
 	default:
 		level.Error(logger).Log("msg", "unknown strategy", "strategy", *strategy)
 		os.Exit(2)
@@ -137,6 +142,10 @@ func main() {
 			StopOnFirstFound: *stopOnFirstFound,
 			CacheCount:       *cacheCount,
 			Strategy:         *strategy,
+			SQLHostname:      *dbHost,
+			SQLDBName:        *dbName,
+			SQLUsername:      *dbUser,
+			SQLPassword:      *dbPass,
 		})
 
 	// web server metrics
