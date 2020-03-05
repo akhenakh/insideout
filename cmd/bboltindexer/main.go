@@ -262,6 +262,7 @@ func main() {
 				os.Exit(2)
 			}
 
+			bucket = tx.Bucket([]byte("cell"))
 			err = bucket.Put(insideout.CellKey(count), b.Bytes())
 			if err != nil {
 				return err

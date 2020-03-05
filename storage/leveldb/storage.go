@@ -30,7 +30,7 @@ var (
 type Storage struct {
 	*leveldb.DB
 	logger        log.Logger
-	MinCoverLevel int
+	minCoverLevel int
 }
 
 // NewStorage returns a cold storage using leveldb
@@ -73,7 +73,7 @@ func NewROStorage(path string, logger log.Logger) (*Storage, func() error, error
 	if err != nil {
 		return nil, nil, err
 	}
-	s.MinCoverLevel = infos.MinCoverLevel
+	s.minCoverLevel = infos.MinCoverLevel
 
 	return s, db.Close, nil
 }
@@ -223,7 +223,7 @@ func (s *Storage) StabDB(lat, lng float64, StopOnInsideFound bool) (insideout.In
 	ll := s2.LatLngFromDegrees(lat, lng)
 	p := s2.PointFromLatLng(ll)
 	c := s2.CellIDFromLatLng(ll)
-	cLookup := s2.CellFromPoint(p).ID().Parent(s.MinCoverLevel)
+	cLookup := s2.CellFromPoint(p).ID().Parent(s.minCoverLevel)
 
 	startKey, stopKey := insideout.InsideRangeKeys(cLookup)
 	iter := s.NewIterator(&util.Range{Start: startKey, Limit: stopKey}, &opt.ReadOptions{

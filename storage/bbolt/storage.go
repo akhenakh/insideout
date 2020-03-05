@@ -26,7 +26,8 @@ var (
 // Storage cold storage
 type Storage struct {
 	*bbolt.DB
-	logger log.Logger
+	logger        log.Logger
+	minCoverLevel int
 }
 
 // NewStorage returns a cold storage using leveldb
@@ -51,10 +52,18 @@ func NewROStorage(path string, logger log.Logger) (*Storage, func() error, error
 		return nil, nil, fmt.Errorf("failed to open DB for reading at %s: %w", path, err)
 	}
 
-	return &Storage{
+	s := &Storage{
 		DB:     db,
 		logger: logger,
-	}, db.Close, nil
+	}
+
+	infos, err := s.LoadIndexInfos()
+	if err != nil {
+		return nil, nil, err
+	}
+	s.minCoverLevel = infos.MinCoverLevel
+
+	return s, db.Close, nil
 }
 
 // LoadFeature loads one feature from the DB
@@ -208,5 +217,79 @@ func (s *Storage) LoadCellStorage(id uint32) (*insideout.CellsStorage, error) {
 func (s *Storage) StabDB(lat, lng float64, StopOnInsideFound bool) (insideout.IndexResponse, error) {
 	var idxResp insideout.IndexResponse
 
-	return idxResp, errors.New("not implemented")
+	ll := s2.LatLngFromDegrees(lat, lng)
+	p := s2.PointFromLatLng(ll)
+	c := s2.CellIDFromLatLng(ll)
+	cLookup := s2.CellFromPoint(p).ID().Parent(s.minCoverLevel)
+	mi := make(map[insideout.FeatureIndexResponse]struct{})
+
+	startKey, stopKey := insideout.InsideRangeKeys(cLookup)
+	err := s.View(func(tx *bbolt.Tx) error {
+		curs := tx.Bucket([]byte("cell")).Cursor()
+		for k, v := curs.Seek(startKey); k != nil && bytes.Compare(k, stopKey) <= 0; k, v = curs.Next() {
+
+			cr := s2.CellID(binary.BigEndian.Uint64(k[1:]))
+			if !cr.Contains(c) {
+				continue
+			}
+			// read back the feature id and polygon index uint32 + uint16
+			for i := 0; i < len(v); i += 4 + 2 {
+				res := insideout.FeatureIndexResponse{}
+				res.ID = binary.BigEndian.Uint32(v[i : i+4])
+				res.Pos = binary.BigEndian.Uint16(v[i+4:])
+				mi[res] = struct{}{}
+				if StopOnInsideFound {
+					idxResp.IDsInside = append(idxResp.IDsInside, res)
+					return nil
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return idxResp, err
+	}
+
+	if len(idxResp.IDsInside) > 0 && StopOnInsideFound {
+		return idxResp, nil
+	}
+
+	// dedup
+	for res := range mi {
+		idxResp.IDsInside = append(idxResp.IDsInside, res)
+	}
+
+	startKey, stopKey = insideout.OutsideRangeKeys(cLookup)
+	mo := make(map[insideout.FeatureIndexResponse]struct{})
+
+	err = s.View(func(tx *bbolt.Tx) error {
+		curs := tx.Bucket([]byte("cell")).Cursor()
+		for k, v := curs.Seek(startKey); k != nil && bytes.Compare(k, stopKey) <= 0; k, v = curs.Next() {
+			cr := s2.CellID(binary.BigEndian.Uint64(k[1:]))
+			if !cr.Contains(c) {
+				continue
+			}
+			// read back the feature id and polygon index uint32 + uint16
+			for i := 0; i < len(v); i += 4 + 2 {
+				res := insideout.FeatureIndexResponse{}
+				res.ID = binary.BigEndian.Uint32(v[i : i+4])
+				res.Pos = binary.BigEndian.Uint16(v[i+4:])
+				// remove any answer matching inside
+				if _, ok := mi[res]; !ok {
+					mo[res] = struct{}{}
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return idxResp, err
+	}
+
+	// dedup
+	for res := range mo {
+		idxResp.IDsMayBeInside = append(idxResp.IDsMayBeInside, res)
+	}
+
+	return idxResp, nil
 }
