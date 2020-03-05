@@ -87,27 +87,34 @@ func New(storage insideout.Store, logger log.Logger, healthServer *health.Server
 		idx = dbidx
 	}
 
-	// cache
-	cache, err := ristretto.NewCache(&ristretto.Config{
-		NumCounters: int64(opts.CacheCount) * 10, // number of keys to track frequency
-		MaxCost:     int64(opts.CacheCount),      // maximum cost of cache
-		BufferItems: 64,                          // number of keys per Get buffer.
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &Server{
+	s := &Server{
 		storage:      storage,
 		logger:       logger,
-		cache:        cache,
 		healthServer: healthServer,
 		idx:          idx,
-	}, nil
+	}
+
+	// cache
+	if opts.CacheCount > 0 {
+		cache, err := ristretto.NewCache(&ristretto.Config{
+			NumCounters: int64(opts.CacheCount) * 10, // number of keys to track frequency
+			MaxCost:     int64(opts.CacheCount),      // maximum cost of cache
+			BufferItems: 64,                          // number of keys per Get buffer.
+		})
+		if err != nil {
+			return nil, err
+		}
+		s.cache = cache
+	}
+
+	return s, nil
 }
 
 // feature fetch feature from cache or
 func (s *Server) feature(id uint32) (*insideout.Feature, error) {
+	if s.cache == nil {
+		return s.storage.LoadFeature(id)
+	}
 	fi, found := s.cache.Get(id)
 	if !found {
 		lf, err := s.storage.LoadFeature(id)

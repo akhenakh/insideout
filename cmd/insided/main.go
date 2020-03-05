@@ -53,7 +53,7 @@ var (
 	version = "no version from LDFLAGS"
 
 	logLevel        = flag.String("logLevel", "INFO", "DEBUG|INFO|WARN|ERROR")
-	cacheCount      = flag.Int("cacheCount", 200, "Features count to cache")
+	cacheCount      = flag.Int("cacheCount", 200, "Features count to cache, 0 to disable the cache")
 	dbPath          = flag.String("dbPath", "inside.db", "Database path")
 	dbEngine        = flag.String("dbEngine", "leveldb", "Database engine: leveldb|badger")
 	httpMetricsPort = flag.Int("httpMetricsPort", 8088, "http port")
