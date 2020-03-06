@@ -19,7 +19,6 @@ import (
 
 	"github.com/akhenakh/insideout"
 	"github.com/akhenakh/insideout/index/dbindex"
-	"github.com/akhenakh/insideout/index/postgis"
 	"github.com/akhenakh/insideout/index/shapeindex"
 	"github.com/akhenakh/insideout/index/treeindex"
 	"github.com/akhenakh/insideout/insidesvc"
@@ -36,6 +35,7 @@ var (
 // Server exposes indexes services
 type Server struct {
 	storage      insideout.Store
+	tileStorage  insideout.TileStore
 	logger       log.Logger
 	cache        *ristretto.Cache
 	healthServer *health.Server
@@ -46,14 +46,10 @@ type Options struct {
 	StopOnFirstFound bool
 	CacheCount       int
 	Strategy         string
-	SQLHostname      string
-	SQLDBName        string
-	SQLUsername      string
-	SQLPassword      string
 }
 
 // New returns a Server
-func New(storage insideout.Store, logger log.Logger, healthServer *health.Server, opts Options) (*Server, error) {
+func New(storage insideout.Store, tileStorage insideout.TileStore, logger log.Logger, healthServer *health.Server, opts Options) (*Server, error) {
 	logger = log.With(logger, "component", "server")
 
 	var idx insideout.Index
@@ -78,17 +74,11 @@ func New(storage insideout.Store, logger log.Logger, healthServer *health.Server
 	case insideout.DBStrategy:
 		dbidx := dbindex.New(storage, dbindex.Options{StopOnInsideFound: opts.StopOnFirstFound})
 		idx = dbidx
-	case insideout.PostgisIndexStrategy:
-		dbidx, err := postgis.New(opts.SQLHostname, opts.SQLUsername, opts.SQLPassword, opts.SQLDBName)
-		if err != nil {
-			level.Error(logger).Log("msg", "failed to read storage", "error", err, "strategy", opts.Strategy)
-			os.Exit(2)
-		}
-		idx = dbidx
 	}
 
 	s := &Server{
 		storage:      storage,
+		tileStorage:  tileStorage,
 		logger:       logger,
 		healthServer: healthServer,
 		idx:          idx,

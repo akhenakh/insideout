@@ -11,8 +11,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/namsral/flag"
-	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/util"
+	"go.etcd.io/bbolt"
 
 	"github.com/akhenakh/insideout"
 	"github.com/akhenakh/insideout/loglevel"
@@ -48,7 +47,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	db, err := leveldb.OpenFile(*dbPath, nil)
+	db, err := bbolt.Open(*dbPath, 0600, nil)
 	if err != nil {
 		level.Error(logger).Log("msg", "can't open leveldb", "error", err)
 		os.Exit(2)
@@ -60,31 +59,40 @@ func main() {
 		level.Error(logger).Log("msg", "can't read data from mbtiles sqlite", "error", err)
 		os.Exit(2)
 	}
-	var zoom, column, row int
-	var tileID, gridID, key string
-	for rows.Next() {
-		rows.Scan(&zoom, &column, &row, &tileID, &gridID)
-		key = fmt.Sprintf("%c%d/%d/%d", insideout.TilesURLPrefix, zoom, column, row)
-		if err = db.Put([]byte(key), []byte(tileID), nil); err != nil {
-			level.Error(logger).Log("msg", "can't read data from mbtiles sqlite", "error", err)
-			os.Exit(2)
-		}
-	}
 
-	rows, err = database.Query("SELECT * FROM images")
-	if err != nil {
-		level.Error(logger).Log("msg", "can't read data from mbtiles sqlite", "error", err)
+	if err := db.Update(func(tx *bbolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists(insideout.MapKey())
+		if err != nil {
+			return err
+		}
+		var zoom, column, row int
+		var tileID, gridID, key string
+		for rows.Next() {
+			rows.Scan(&zoom, &column, &row, &tileID, &gridID)
+			key = fmt.Sprintf("%c%d/%d/%d", insideout.TilesURLPrefix, zoom, column, row)
+			if err = b.Put([]byte(key), []byte(tileID)); err != nil {
+				return err
+			}
+		}
+
+		rows, err = database.Query("SELECT * FROM images")
+		if err != nil {
+			return err
+		}
+
+		var tileData []byte
+		for rows.Next() {
+			rows.Scan(&tileData, &tileID)
+			key = fmt.Sprintf("%c%s", insideout.TilesPrefix, tileID)
+			if err = b.Put([]byte(key), tileData); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil {
+		level.Error(logger).Log("msg", "failed writing to DB", "error", err, "db_path", *dbPath)
 		os.Exit(2)
-	}
-
-	var tileData []byte
-	for rows.Next() {
-		rows.Scan(&tileData, &tileID)
-		key = fmt.Sprintf("%c%s", insideout.TilesPrefix, tileID)
-		if err = db.Put([]byte(key), tileData, nil); err != nil {
-			level.Error(logger).Log("msg", "can't read data from mbtiles sqlite", "error", err)
-			os.Exit(2)
-		}
 	}
 
 	infoBytes := new(bytes.Buffer)
@@ -101,13 +109,14 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := db.Put(insideout.MapKey(), infoBytes.Bytes(), nil); err != nil {
+	err = db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(insideout.MapKey())
+
+		return b.Put(insideout.MapKey(), infoBytes.Bytes())
+	})
+	if err != nil {
 		level.Error(logger).Log("msg", "failed writing MapInfos to DB", "error", err, "db_path", *dbPath)
 		os.Exit(2)
 	}
 
-	if err := db.CompactRange(util.Range{}); err != nil {
-		level.Error(logger).Log("msg", "failed while compacting DB", "error", err, "db_path", *dbPath)
-		os.Exit(2)
-	}
 }

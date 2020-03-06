@@ -30,7 +30,7 @@ type Storage struct {
 	minCoverLevel int
 }
 
-// NewStorage returns a cold storage using leveldb
+// NewStorage returns a cold storage using bboltdb
 func NewStorage(path string, logger log.Logger) (*Storage, func() error, error) {
 	// Creating DB
 	db, err := bbolt.Open(path, 0600, nil)
@@ -44,7 +44,7 @@ func NewStorage(path string, logger log.Logger) (*Storage, func() error, error) 
 	}, db.Close, nil
 }
 
-// NewROStorage returns a read only storage using leveldb
+// NewROStorage returns a read only storage using bboltdb
 func NewROStorage(path string, logger log.Logger) (*Storage, func() error, error) {
 	// Creating DB
 	db, err := bbolt.Open(path, 0600, &bbolt.Options{ReadOnly: true})
@@ -70,7 +70,7 @@ func NewROStorage(path string, logger log.Logger) (*Storage, func() error, error
 func (s *Storage) LoadFeature(id uint32) (*insideout.Feature, error) {
 	fs := &insideout.FeatureStorage{}
 	err := s.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket([]byte("feature"))
+		b := tx.Bucket([]byte{insideout.FeaturePrefix()})
 		k := insideout.FeatureKey(id)
 		v := b.Get(k)
 		if v == nil {
@@ -104,7 +104,7 @@ func (s *Storage) LoadFeature(id uint32) (*insideout.Feature, error) {
 // only useful to fill in memory shapeindex
 func (s *Storage) LoadAllFeatures(add func(*insideout.FeatureStorage, uint32) error) error {
 	err := s.View(func(tx *bbolt.Tx) error {
-		c := tx.Bucket([]byte("feature")).Cursor()
+		c := tx.Bucket([]byte{insideout.FeaturePrefix()}).Cursor()
 		prefix := []byte{insideout.FeaturePrefix()}
 		for key, value := c.Seek(prefix); key != nil && bytes.HasPrefix(key, prefix); key, value = c.Next() {
 			id := binary.BigEndian.Uint32(key[1:])
@@ -131,7 +131,7 @@ func (s *Storage) LoadAllFeatures(add func(*insideout.FeatureStorage, uint32) er
 // only useful to fill in memory tree indexes
 func (s *Storage) LoadFeaturesCells(add func([]s2.CellUnion, []s2.CellUnion, uint32)) error {
 	err := s.View(func(tx *bbolt.Tx) error {
-		c := tx.Bucket([]byte("cell")).Cursor()
+		c := tx.Bucket([]byte{insideout.CellPrefix()}).Cursor()
 		prefix := []byte{insideout.CellPrefix()}
 
 		for key, value := c.Seek(prefix); key != nil && bytes.HasPrefix(key, prefix); key, value = c.Next() {
@@ -154,7 +154,10 @@ func (s *Storage) LoadFeaturesCells(add func([]s2.CellUnion, []s2.CellUnion, uin
 func (s *Storage) LoadMapInfos() (*insideout.MapInfos, bool, error) {
 	var mapInfos *insideout.MapInfos
 	err := s.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket([]byte("map"))
+		b := tx.Bucket(insideout.MapKey())
+		if b == nil {
+			return nil
+		}
 		value := b.Get(insideout.MapKey())
 		if value == nil {
 			return nil
@@ -182,7 +185,7 @@ func (s *Storage) LoadIndexInfos() (*insideout.IndexInfos, error) {
 	infos := &insideout.IndexInfos{}
 
 	err := s.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket([]byte("info"))
+		b := tx.Bucket(insideout.InfoKey())
 		value := b.Get(insideout.InfoKey())
 		if value == nil {
 			return errors.New("can't find infos entries, invalid DB")
@@ -202,7 +205,7 @@ func (s *Storage) LoadCellStorage(id uint32) (*insideout.CellsStorage, error) {
 	// get the s2 cells from the index
 	cs := &insideout.CellsStorage{}
 	err := s.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket([]byte("cell"))
+		b := tx.Bucket([]byte{insideout.CellPrefix()})
 		v := b.Get(insideout.CellKey(id))
 		dec := cbor.NewDecoder(bytes.NewReader(v))
 		if err := dec.Decode(cs); err != nil {
@@ -225,7 +228,7 @@ func (s *Storage) StabDB(lat, lng float64, StopOnInsideFound bool) (insideout.In
 
 	startKey, stopKey := insideout.InsideRangeKeys(cLookup)
 	err := s.View(func(tx *bbolt.Tx) error {
-		curs := tx.Bucket([]byte("cell")).Cursor()
+		curs := tx.Bucket([]byte{insideout.CellPrefix()}).Cursor()
 		for k, v := curs.Seek(startKey); k != nil && bytes.Compare(k, stopKey) <= 0; k, v = curs.Next() {
 
 			cr := s2.CellID(binary.BigEndian.Uint64(k[1:]))
@@ -263,7 +266,7 @@ func (s *Storage) StabDB(lat, lng float64, StopOnInsideFound bool) (insideout.In
 	mo := make(map[insideout.FeatureIndexResponse]struct{})
 
 	err = s.View(func(tx *bbolt.Tx) error {
-		curs := tx.Bucket([]byte("cell")).Cursor()
+		curs := tx.Bucket([]byte{insideout.CellPrefix()}).Cursor()
 		for k, v := curs.Seek(startKey); k != nil && bytes.Compare(k, stopKey) <= 0; k, v = curs.Next() {
 			cr := s2.CellID(binary.BigEndian.Uint64(k[1:]))
 			if !cr.Contains(c) {

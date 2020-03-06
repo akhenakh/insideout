@@ -1,48 +1,42 @@
 ## Strategy
 
 - full s2 index, really fast, huge memory consumption (communes france dataset)
-
-  ```
-   9.95088ms pip 10000
-   Alloc = 954 MiB TotalAlloc = 2822 MiB   Sys = 1009 MiB  NumGC = 16
-  ```
 - Inside Tree + in memory Loops
-
-  ```
-  icoverer := &s2.RegionCoverer{MaxLevel: 20, MaxCells: 16}
-  ocoverer := &s2.RegionCoverer{MaxLevel: 15, MaxCells: 8}
-  41.929671ms pip 4548
-  Alloc = 182 MiB TotalAlloc = 197 MiB    Sys = 205 MiB   NumGC = 7
-  ```
 - On disk index
-  ```
-  83.190952ms pip 3343
-  Alloc = 130 MiB TotalAlloc = 400 MiB    Sys = 204 MiB   NumGC = 16
-  ```
-  
-```
- ./insided -stopOnFirstFound=false -strategy=shapeindex  leveldb gcache
-count 59623 rate mean 6165/s rate1 6227/s 99p 1056870
-Alloc = 341 MiB TotalAlloc = 4828 MiB   Sys = 1350 MiB  NumGC = 33
 
-./insided -stopOnFirstFound=false -strategy=db  leveldb gcache
-count 31666 rate mean 2499/s rate1 2494/s 99p 1535310
-Alloc = 24 MiB  TotalAlloc = 4393 MiB   Sys = 71 MiB    NumGC = 325
+## K/V Engines
+Several engines have been tested: bbolt, pogreb, badger 1.6, goleveldb.
 
-./insided -stopOnFirstFound=false -strategy=postgis  leveldb gcache
-count 10401 rate mean 2766/s rate1 0/s 99p 812003
-Alloc = 24 MiB  TotalAlloc = 935 MiB    Sys = 71 MiB    NumGC = 76
+For insideout particular load (read only random reads), bbolt is the best performer.
 
-$ ./insided -stopOnFirstFound=false -strategy=insidetree  leveldb gcache
-count 87912 rate mean 3731/s rate1 3617/s 99p 14598001
-Alloc = 303 MiB TotalAlloc = 7997 MiB   Sys = 480 MiB   NumGC = 44
-
-$ ./insided -stopOnFirstFound=false -strategy=db  leveldb ristretto
-count 108059 rate mean 2520/s rate1 2512/s 99p 2161444
-Alloc = 20 MiB  TotalAlloc = 15549 MiB  Sys = 71 MiB    NumGC = 1078
-
-$ ./insided -stopOnFirstFound=false -strategy=insidetree  leveldb ristretto
-count 78946 rate mean 3816/s rate1 3828/s 99p 14089667
-Alloc = 412 MiB TotalAlloc = 11849 MiB  Sys = 480 MiB   NumGC = 62
+Test with fr-communes usind db engines & insidetree when available:
 
 ```
+ ./insided -stopOnFirstFound=true -strategy=db -cacheCount=0 -dbPath=../leveldbindexer/inside.db -dbEngine=leveldb
+count 31083 rate mean 3108/s rate1 3110/s 99p 980665
+Alloc = 13 MiB  TotalAlloc = 3686 MiB   Sys = 71 MiB    NumGC = 321
+
+./insided -stopOnFirstFound=true -strategy=db -cacheCount=0 -dbPath=../bboltindexer/inside.db -dbEngine=bbolt
+count 42190 rate mean 4219/s rate1 4211/s 99p 4760278
+Alloc = 1 MiB   TotalAlloc = 3479 MiB   Sys = 71 MiB    NumGC = 1635
+
+./insided -stopOnFirstFound=true -strategy=insidetree -cacheCount=0 -dbPath=../bboltindexer/inside.db -dbEngine=bbolt 
+count 42135 rate mean 4214/s rate1 4206/s 99p 2259642
+Alloc = 208 MiB TotalAlloc = 3638 MiB   Sys = 411 MiB   NumGC = 29
+
+./insided -stopOnFirstFound=true -strategy=insidetree -cacheCount=0 -dbPath=../leveldbindexer/inside.db -dbEngine=leveldb
+count 41021 rate mean 4102/s rate1 4091/s 99p 13443368
+Alloc = 390 MiB TotalAlloc = 3441 MiB   Sys = 480 MiB   NumGC = 22
+
+./insided -stopOnFirstFound=true -strategy=insidetree -cacheCount=0 -dbPath=../badgerindexer/inside.db -dbEngine=badger
+count 38936 rate mean 3894/s rate1 3874/s 99p 2599252
+Alloc = 554 MiB TotalAlloc = 3988 MiB   Sys = 680 MiB   NumGC = 15
+
+./insided -stopOnFirstFound=true -strategy=insidetree -cacheCount=0 -dbPath=../progrebindexer/inside.db -dbEngine=progreb
+count 44853 rate mean 4485/s rate1 4476/s 99p 2374910
+Alloc = 286 MiB TotalAlloc = 3954 MiB   Sys = 479 MiB   NumGC = 32
+```
+
+Pogreb is faster but does not supports prefix range and consume a bit more than bbolt.
+
+bbolt is more capable for this load.

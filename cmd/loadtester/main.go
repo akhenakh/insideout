@@ -27,13 +27,13 @@ import (
 const appName = "loadtester"
 
 var (
-	logLevel = flag.String("logLevel", "INFO", "DEBUG|INFO|WARN|ERROR")
-
-	insideURI = flag.String("insideURI", "localhost:9200", "insided grpc URI")
-	latMin    = flag.Float64("latMin", 49.10, "Lat min")
-	lngMin    = flag.Float64("lngMin", -1.10, "Lng min")
-	latMax    = flag.Float64("latMax", 46.63, "Lat max")
-	lngMax    = flag.Float64("lngMax", 5.5, "Lng max")
+	logLevel     = flag.String("logLevel", "INFO", "DEBUG|INFO|WARN|ERROR")
+	testDuration = flag.Duration("testDuration", 0, "performs the test for duration, 0 = infinite")
+	insideURI    = flag.String("insideURI", "localhost:9200", "insided grpc URI")
+	latMin       = flag.Float64("latMin", 49.10, "Lat min")
+	lngMin       = flag.Float64("lngMin", -1.10, "Lng min")
+	latMax       = flag.Float64("latMax", 46.63, "Lat max")
+	lngMax       = flag.Float64("lngMax", 5.5, "Lng max")
 )
 
 func main() {
@@ -64,6 +64,10 @@ func main() {
 
 	c := insidesvc.NewInsideClient(conn)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	if *testDuration > 0 {
+		ctx, cancel = context.WithTimeout(ctx, *testDuration)
+	}
 
 	// catch termination
 	interrupt := make(chan os.Signal, 1)

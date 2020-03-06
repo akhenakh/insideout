@@ -2,7 +2,6 @@ package insideout
 
 import (
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/golang/geo/s2"
@@ -19,7 +18,6 @@ type Store interface {
 }
 
 type TileStore interface {
-	TilesHandler(w http.ResponseWriter, req *http.Request)
 	ReadTileData(z uint8, x uint64, y uint64) ([]byte, error)
 }
 

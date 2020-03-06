@@ -41,10 +41,7 @@ import (
 	"github.com/akhenakh/insideout/loglevel"
 	"github.com/akhenakh/insideout/server"
 	"github.com/akhenakh/insideout/server/debug"
-	"github.com/akhenakh/insideout/storage/badger"
 	"github.com/akhenakh/insideout/storage/bbolt"
-	"github.com/akhenakh/insideout/storage/leveldb"
-	"github.com/akhenakh/insideout/storage/pogreb"
 )
 
 const appName = "insided"
@@ -55,7 +52,6 @@ var (
 	logLevel        = flag.String("logLevel", "INFO", "DEBUG|INFO|WARN|ERROR")
 	cacheCount      = flag.Int("cacheCount", 200, "Features count to cache, 0 to disable the cache")
 	dbPath          = flag.String("dbPath", "inside.db", "Database path")
-	dbEngine        = flag.String("dbEngine", "leveldb", "Database engine: leveldb|badger")
 	httpMetricsPort = flag.Int("httpMetricsPort", 8088, "http port")
 	httpAPIPort     = flag.Int("httpAPIPort", 9201, "http API port")
 	grpcPort        = flag.Int("grpcPort", 9200, "gRPC API port")
@@ -88,7 +84,7 @@ func main() {
 	stdlog.SetOutput(log.NewStdlibAdapter(logger))
 
 	switch *strategy {
-	case insideout.InsideTreeStrategy, insideout.DBStrategy, insideout.ShapeIndexStrategy, insideout.PostgisIndexStrategy:
+	case insideout.InsideTreeStrategy, insideout.DBStrategy, insideout.ShapeIndexStrategy:
 	default:
 		level.Error(logger).Log("msg", "unknown strategy", "strategy", *strategy)
 		os.Exit(2)
@@ -111,44 +107,12 @@ func main() {
 		stdlog.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
-	var storage insideout.Store
-	switch *dbEngine {
-	case "leveldb":
-		ldbstorage, clean, err := leveldb.NewROStorage(*dbPath, logger)
-		if err != nil {
-			level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
-			os.Exit(2)
-		}
-		storage = ldbstorage
-		defer clean()
-	case "bbolt":
-		bstorage, clean, err := bbolt.NewROStorage(*dbPath, logger)
-		if err != nil {
-			level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
-			os.Exit(2)
-		}
-		storage = bstorage
-		defer clean()
-	case "badger":
-		bstorage, clean, err := badger.NewROStorage(*dbPath, logger)
-		if err != nil {
-			level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
-			os.Exit(2)
-		}
-		storage = bstorage
-		defer clean()
-	case "pogreb":
-		pstorage, clean, err := pogreb.NewROStorage(*dbPath, logger)
-		if err != nil {
-			level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
-			os.Exit(2)
-		}
-		storage = pstorage
-		defer clean()
-	default:
-		level.Error(logger).Log("msg", "unknown engine", "engine", *dbEngine)
+	storage, clean, err := bbolt.NewROStorage(*dbPath, logger)
+	if err != nil {
+		level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
 		os.Exit(2)
 	}
+	defer clean()
 
 	infos, err := storage.LoadIndexInfos()
 	if err != nil {
@@ -174,15 +138,11 @@ func main() {
 	})
 
 	// server
-	server, err := server.New(storage, logger, healthServer,
+	server, err := server.New(storage, storage, logger, healthServer,
 		server.Options{
 			StopOnFirstFound: *stopOnFirstFound,
 			CacheCount:       *cacheCount,
 			Strategy:         *strategy,
-			SQLHostname:      *dbHost,
-			SQLDBName:        *dbName,
-			SQLUsername:      *dbUser,
-			SQLPassword:      *dbPass,
 		})
 	if err != nil {
 		level.Error(logger).Log("msg", "can't get a working server", "error", err)
@@ -253,7 +213,7 @@ func main() {
 
 		r.HandleFunc("/debug/cells", debug.S2CellQueryHandler)
 		r.HandleFunc("/debug/get/{fid}/{loop_index}", server.DebugGetHandler)
-		//r.HandleFunc("/debug/tiles/{z}/{x}/{y}", storage.TilesHandler)
+		r.HandleFunc("/debug/tiles/{z}/{x}/{y}", server.TilesHandler)
 
 		// static file handler
 		fileHandler := http.FileServer(http.Dir("./static"))

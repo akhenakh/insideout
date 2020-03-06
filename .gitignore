@@ -15,10 +15,7 @@
 # vendor/
 
 .idea/
-/cmd/leveldbindexer/inside.db/
-/cmd/leveldbindexer/leveldbindexer
-/cmd/badgerindexer/inside.db/
-/cmd/badgerindexer/badgerindexer
+
 /cmd/insided/insided
 /cmd/insided/inside.db/
 /cmd/insidecli/insidecli
@@ -27,8 +24,5 @@ inside.db/
 /cmd/insided/grpc_health_probe
 /cmd/loadtester/loadtester
 /cmd/loadtesterpg/loadtesterpg
-/cmd/pogrebindexer/pogrebindexer
-/cmd/pogrebindexer/inside.db.index
-/cmd/pogrebindexer/inside.db
-/cmd/bboltindexer/bboltindexer
-/cmd/bboltindexer/inside.db
+/cmd/indexer/indexer
+/cmd/indexer/inside.db

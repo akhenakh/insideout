@@ -10,18 +10,17 @@ import (
 	"path"
 	"time"
 
-	sleveldb "github.com/akhenakh/insideout/storage/leveldb"
 	"github.com/fxamacker/cbor"
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/golang/geo/s2"
 	"github.com/namsral/flag"
-	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/util"
 	"github.com/twpayne/go-geom/encoding/geojson"
+	"go.etcd.io/bbolt"
 
 	"github.com/akhenakh/insideout"
 	"github.com/akhenakh/insideout/loglevel"
+	sbbolt "github.com/akhenakh/insideout/storage/bbolt"
 )
 
 /*
@@ -57,7 +56,7 @@ import (
 29 	 	2.95 			cm2 	  	17 mm 	18 mm
 30 	 	0.74 			cm2 	  	8 mm 	9 mm
 */
-const appName = "leveldbindexer"
+const appName = "bboltindexer"
 
 var (
 	version = "no version from LDFLAGS"
@@ -103,7 +102,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	storage, clean, err := sleveldb.NewStorage(*dbPath, logger)
+	storage, clean, err := sbbolt.NewStorage(*dbPath, logger)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
 		os.Exit(2)
@@ -122,7 +121,22 @@ func main() {
 	}
 
 	var count uint32
-
+	err = storage.Update(func(tx *bbolt.Tx) error {
+		if _, err := tx.CreateBucket(insideout.InfoKey()); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucket([]byte{insideout.FeaturePrefix()}); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucket([]byte{insideout.CellPrefix()}); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		level.Error(logger).Log("msg", "can't create bucket into DB", "error", err, "db_path", *dbPath)
+		os.Exit(2)
+	}
 	for _, f := range fc.Features {
 		// cover inside
 		cui, err := insideout.GeoJSONCoverCellUnion(f, icoverer, true)
@@ -138,64 +152,80 @@ func main() {
 			continue
 		}
 
-		batch := new(leveldb.Batch)
-
 		// store interior cover
-		for fi, cu := range cui {
-			if *warningCellsCover != 0 && len(cu) > *warningCellsCover {
-				level.Warn(logger).Log(
-					"msg", fmt.Sprintf("inside cover too big%d polygon #%d %s", len(cui), fi, f.Properties),
-					"error", err, "feature_properties", f.Properties,
-				)
+		err = storage.Update(func(tx *bbolt.Tx) error {
+			for fi, cu := range cui {
+				if *warningCellsCover != 0 && len(cu) > *warningCellsCover {
+					level.Warn(logger).Log(
+						"msg", fmt.Sprintf("inside cover too big%d polygon #%d %s", len(cui), fi, f.Properties),
+						"error", err, "feature_properties", f.Properties,
+					)
 
-				continue
-			}
-			for _, c := range cu {
-				// value is the feature id: current count, the polygon index in a multipolygon: fi
-				v := make([]byte, 6)
-				binary.BigEndian.PutUint32(v, count)
-				binary.BigEndian.PutUint16(v[4:], uint16(fi))
-				// append to existing if any
-				ev, err := storage.Get(insideout.InsideKey(c), nil)
-				if err != nil {
-					if err != leveldb.ErrNotFound {
-						level.Error(logger).Log("msg", "failed reading DB", "error", err, "db_path", *dbPath)
-						os.Exit(2)
+					continue
+				}
+				for _, c := range cu {
+					// value is the feature id: current count, the polygon index in a multipolygon: fi
+					v := make([]byte, 6)
+					binary.BigEndian.PutUint32(v, count)
+					binary.BigEndian.PutUint16(v[4:], uint16(fi))
+					// append to existing if any
+					b := tx.Bucket([]byte{insideout.CellPrefix()})
+					ev := b.Get(insideout.InsideKey(c))
+
+					if ev != nil {
+						v = append(v, ev...)
+					}
+
+					err = b.Put(insideout.InsideKey(c), v)
+					if err != nil {
+						return err
 					}
 				}
-				v = append(v, ev...)
-				batch.Put(insideout.InsideKey(c), v)
 			}
+			return nil
+		})
+		if err != nil {
+			level.Error(logger).Log("msg", "failed set inside cover into DB", "error", err, "db_path", *dbPath)
+			os.Exit(2)
 		}
 
 		// store outside cover
-		for fi, cu := range cuo {
-			if *warningCellsCover != 0 && len(cu) > *warningCellsCover {
-				level.Warn(logger).Log(
-					"msg", fmt.Sprintf("outisde cover too big%d polygon #%d %s", len(cui), fi, f.Properties),
-					"error", err, "feature_properties", f.Properties,
-				)
-				continue
-			}
-			for _, c := range cu {
-				// TODO: filter cells already indexed by inside cover
+		err = storage.Update(func(tx *bbolt.Tx) error {
+			for fi, cu := range cuo {
+				if *warningCellsCover != 0 && len(cu) > *warningCellsCover {
+					level.Warn(logger).Log(
+						"msg", fmt.Sprintf("outisde cover too big%d polygon #%d %s", len(cui), fi, f.Properties),
+						"error", err, "feature_properties", f.Properties,
+					)
+					continue
+				}
+				for _, c := range cu {
+					// TODO: filter cells already indexed by inside cover
 
-				// value is the feature id: current count, the polygon index in a multipolygon: fi
-				v := make([]byte, 6)
-				binary.BigEndian.PutUint32(v, count)
-				binary.BigEndian.PutUint16(v[4:], uint16(fi))
-				// append to existing if any
-				ev, err := storage.Get(insideout.OutsideKey(c), nil)
-				if err != nil {
-					if err != leveldb.ErrNotFound {
-						level.Error(logger).Log("msg", "failed reading DB", "error", err, "db_path", *dbPath)
-						os.Exit(2)
+					// value is the feature id: current count, the polygon index in a multipolygon: fi
+					v := make([]byte, 6)
+					binary.BigEndian.PutUint32(v, count)
+					binary.BigEndian.PutUint16(v[4:], uint16(fi))
+					// append to existing if any
+					b := tx.Bucket([]byte{insideout.CellPrefix()})
+					ev := b.Get(insideout.OutsideKey(c))
+					if ev != nil {
+						v = append(v, ev...)
+					}
+
+					err = b.Put(insideout.OutsideKey(c), v)
+					if err != nil {
+						return err
 					}
 				}
-				v = append(v, ev...)
-				batch.Put(insideout.OutsideKey(c), v)
 			}
+			return nil
+		})
+		if err != nil {
+			level.Error(logger).Log("msg", "failed set outside cover into DB", "error", err, "db_path", *dbPath)
+			os.Exit(2)
 		}
+
 		lb, err := insideout.GeoJSONEncodeLoops(f)
 		if err != nil {
 			level.Error(logger).Log("msg", "can't encode loop", "error", err)
@@ -213,33 +243,41 @@ func main() {
 			os.Exit(2)
 		}
 
-		batch.Put(insideout.FeatureKey(count), b.Bytes())
+		err = storage.Update(func(tx *bbolt.Tx) error {
+			bucket := tx.Bucket([]byte{insideout.FeaturePrefix()})
+			err := bucket.Put(insideout.FeatureKey(count), b.Bytes())
+			if err != nil {
+				return err
+			}
+			// store cells for tree
+			b = new(bytes.Buffer)
+			enc = cbor.NewEncoder(b, cbor.CanonicalEncOptions())
+			cs := &insideout.CellsStorage{
+				CellsIn:  cui,
+				CellsOut: cuo,
+			}
 
-		// store cells for tree
-		b = new(bytes.Buffer)
-		enc = cbor.NewEncoder(b, cbor.CanonicalEncOptions())
-		cs := &insideout.CellsStorage{
-			CellsIn:  cui,
-			CellsOut: cuo,
-		}
+			if err := enc.Encode(cs); err != nil {
+				level.Error(logger).Log("msg", "can't encode CellsStorage", "error", err)
+				os.Exit(2)
+			}
 
-		if err := enc.Encode(cs); err != nil {
-			level.Error(logger).Log("msg", "can't encode CellsStorage", "error", err)
-			os.Exit(2)
-		}
+			bucket = tx.Bucket([]byte{insideout.CellPrefix()})
+			err = bucket.Put(insideout.CellKey(count), b.Bytes())
+			if err != nil {
+				return err
+			}
 
-		batch.Put(insideout.CellKey(count), b.Bytes())
-
-		level.Debug(logger).Log(
-			"msg", "stored FeatureStorage",
-			"feature_properties", f.Properties,
-			"loop_count", len(fs.LoopsBytes),
-			"inside_loop_id", count,
-		)
-
-		err = storage.Write(batch, nil)
+			level.Debug(logger).Log(
+				"msg", "stored FeatureStorage",
+				"feature_properties", f.Properties,
+				"loop_count", len(fs.LoopsBytes),
+				"inside_loop_id", count,
+			)
+			return nil
+		})
 		if err != nil {
-			level.Error(logger).Log("msg", "failed writing batch to DB", "error", err, "db_path", *dbPath)
+			level.Error(logger).Log("msg", "failed store feature into DB", "error", err, "db_path", *dbPath)
 			os.Exit(2)
 		}
 
@@ -268,16 +306,17 @@ func main() {
 		level.Error(logger).Log("msg", "failed encoding IndexInfos", "error", err)
 		os.Exit(2)
 	}
-
-	if err := storage.Put(insideout.InfoKey(), infoBytes.Bytes(), nil); err != nil {
+	err = storage.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(insideout.InfoKey())
+		if err := b.Put(insideout.InfoKey(), infoBytes.Bytes()); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
 		level.Error(logger).Log("msg", "failed writing IndexInfos to DB", "error", err, "db_path", *dbPath)
 		os.Exit(2)
 	}
 
 	level.Info(logger).Log("msg", "stored index_infos", "feature_count", infos.FeatureCount)
-
-	if err := storage.CompactRange(util.Range{}); err != nil {
-		level.Error(logger).Log("msg", "failed compacting DB", "error", err, "db_path", *dbPath)
-		os.Exit(2)
-	}
 }
