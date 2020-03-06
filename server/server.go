@@ -30,6 +30,18 @@ var (
 		Name:      "error_total",
 		Help:      "The total number of errors occurring",
 	})
+
+	featureHitCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "insided_server",
+		Name:      "feature_cache_hit",
+		Help:      "Features cache hits",
+	})
+
+	featureMissCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "insided_server",
+		Name:      "feature_miss_hit",
+		Help:      "Features miss hits",
+	})
 )
 
 // Server exposes indexes services
@@ -112,9 +124,11 @@ func (s *Server) feature(id uint32) (*insideout.Feature, error) {
 			return nil, err
 		}
 		s.cache.Set(id, lf, 1)
+		featureMissCounter.Inc()
 		return lf, nil
 	}
 
+	featureHitCounter.Inc()
 	return fi.(*insideout.Feature), nil
 }
 
