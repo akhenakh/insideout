@@ -20,8 +20,15 @@ spec:
         app: insided
     spec:
       containers:
-        - image: akhenakh/insided-fr-communes:2020022
+        - image: akhenakh/insided-fr-communes:2020030602
           name: insided-fr-communes
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: "2"
+            requests:
+              memory: 64Mi
+              cpu: "250m"
           readinessProbe:
             exec:
               command: ["/root/grpc_health_probe", "-addr=:6666"]
@@ -30,7 +37,6 @@ spec:
             exec:
                 command: ["/root/grpc_health_probe", "-addr=:6666"]
             initialDelaySeconds: 2
-          resources: {}
           env:
             - name: HTTPMETRICSPORT
               value: "8088"

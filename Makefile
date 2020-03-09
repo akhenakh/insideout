@@ -11,12 +11,14 @@ CGO_ENABLED=0
 
 targets = insided indexer insidecli mbtilestokv loadtester
 
-.PHONY: all lint test insided insidecli indexer clean mbtilestokv loadtester
+.PHONY: all lint test insided insidecli indexer clean mbtilestokv loadtester testnolint
 
 all: test $(targets)
 
-test: CGO_ENABLED=1
-test: lint
+test: lint testnolint
+
+CGO_ENABLED=1
+testnolint:
 	go test -race ./...
 
 lint:

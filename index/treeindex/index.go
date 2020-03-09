@@ -30,8 +30,8 @@ func New(opts Options) *Index {
 	}
 }
 
-func (idx *Index) Add(CellsIn []s2.CellUnion, CellsOut []s2.CellUnion, id uint32) {
-	for i, cu := range CellsIn {
+func (idx *Index) Add(cellsIn []s2.CellUnion, cellsOut []s2.CellUnion, id uint32) {
+	for i, cu := range cellsIn {
 		for _, c := range cu {
 			idx.itree.Index(c, insideout.FeatureIndexResponse{
 				ID:  id,
@@ -39,7 +39,7 @@ func (idx *Index) Add(CellsIn []s2.CellUnion, CellsOut []s2.CellUnion, id uint32
 			})
 		}
 	}
-	for i, cu := range CellsOut {
+	for i, cu := range cellsOut {
 		for _, c := range cu {
 			idx.otree.Index(c, insideout.FeatureIndexResponse{
 				ID:  id,

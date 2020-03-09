@@ -111,12 +111,10 @@ func main() {
 
 	err = db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(insideout.MapKey())
-
 		return b.Put(insideout.MapKey(), infoBytes.Bytes())
 	})
 	if err != nil {
 		level.Error(logger).Log("msg", "failed writing MapInfos to DB", "error", err, "db_path", *dbPath)
 		os.Exit(2)
 	}
-
 }

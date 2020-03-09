@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang/geo/s2"
+	"github.com/twpayne/go-geom/encoding/geojson"
 )
 
 type Store interface {
@@ -15,6 +16,8 @@ type Store interface {
 	LoadIndexInfos() (*IndexInfos, error)
 	LoadMapInfos() (*MapInfos, bool, error)
 	StabDB(lat, lng float64, StopOnInsideFound bool) (IndexResponse, error)
+	Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer, ocoverer *s2.RegionCoverer,
+		warningCellsCover int, fileName, version string) error
 }
 
 type TileStore interface {

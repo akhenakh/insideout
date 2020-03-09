@@ -11,6 +11,7 @@ require (
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/geo v0.0.0-20190916061304-5b978397cfec
 	github.com/golang/protobuf v1.3.2
+	github.com/google/go-cmp v0.4.0
 	github.com/gorilla/handlers v1.4.2
 	github.com/gorilla/mux v1.7.3
 	github.com/grpc-ecosystem/go-grpc-middleware v1.1.0
@@ -23,6 +24,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563
 	github.com/slok/go-http-metrics v0.6.1
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
+	github.com/stretchr/testify v1.4.0
 	github.com/twpayne/go-geom v1.0.5
 	go.etcd.io/bbolt v1.3.3
 	golang.org/x/net v0.0.0-20190620200207-3b0461eec859

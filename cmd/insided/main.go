@@ -17,7 +17,7 @@ import (
 	"text/template"
 	"time"
 
-	_ "net/http/pprof"
+	// _ "net/http/pprof"
 
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -56,11 +56,6 @@ var (
 	httpAPIPort     = flag.Int("httpAPIPort", 9201, "http API port")
 	grpcPort        = flag.Int("grpcPort", 9200, "gRPC API port")
 	healthPort      = flag.Int("healthPort", 6666, "grpc health port")
-
-	dbHost = flag.String("dbHost", "localhost", "database hostname use with postgis index only")
-	dbUser = flag.String("dbUser", "testgis", "database username use with postgis index only")
-	dbPass = flag.String("dbPass", "testgis", "database password use with postgis index only")
-	dbName = flag.String("dbName", "testgis", "database name use with postgis index only")
 
 	stopOnFirstFound = flag.Bool("stopOnFirstFound", false, "Stop in first feature found")
 	strategy         = flag.String("strategy", insideout.DBStrategy, "Strategy to use: insidetree|shapeindex|db|postgis")
@@ -103,9 +98,9 @@ func main() {
 	g, ctx := errgroup.WithContext(ctx)
 
 	// pprof
-	go func() {
-		stdlog.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
+	// go func() {
+	// 	stdlog.Println(http.ListenAndServe("localhost:6060", nil))
+	// }()
 
 	storage, clean, err := bbolt.NewROStorage(*dbPath, logger)
 	if err != nil {

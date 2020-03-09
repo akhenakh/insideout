@@ -61,7 +61,8 @@ type Options struct {
 }
 
 // New returns a Server
-func New(storage insideout.Store, tileStorage insideout.TileStore, logger log.Logger, healthServer *health.Server, opts Options) (*Server, error) {
+func New(storage insideout.Store, tileStorage insideout.TileStore,
+	logger log.Logger, healthServer *health.Server, opts Options) (*Server, error) {
 	logger = log.With(logger, "component", "server")
 
 	var idx insideout.Index
@@ -133,7 +134,9 @@ func (s *Server) feature(id uint32) (*insideout.Feature, error) {
 }
 
 // Within query exposed via gRPC
-func (s *Server) Within(ctx context.Context, req *insidesvc.WithinRequest) (resp *insidesvc.WithinResponse, terr error) {
+func (s *Server) Within(
+	ctx context.Context, req *insidesvc.WithinRequest,
+) (resp *insidesvc.WithinResponse, terr error) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "Within")
 	defer span.Finish()
 

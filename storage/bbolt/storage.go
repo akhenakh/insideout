@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/fxamacker/cbor"
 	log "github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/golang/geo/s2"
+	"github.com/twpayne/go-geom/encoding/geojson"
 	"go.etcd.io/bbolt"
 
 	"github.com/akhenakh/insideout"
@@ -217,7 +220,7 @@ func (s *Storage) LoadCellStorage(id uint32) (*insideout.CellsStorage, error) {
 	return cs, err
 }
 
-func (s *Storage) StabDB(lat, lng float64, StopOnInsideFound bool) (insideout.IndexResponse, error) {
+func (s *Storage) StabDB(lat, lng float64, stopOnInsideFound bool) (insideout.IndexResponse, error) {
 	var idxResp insideout.IndexResponse
 
 	ll := s2.LatLngFromDegrees(lat, lng)
@@ -229,8 +232,8 @@ func (s *Storage) StabDB(lat, lng float64, StopOnInsideFound bool) (insideout.In
 	startKey, stopKey := insideout.InsideRangeKeys(cLookup)
 	err := s.View(func(tx *bbolt.Tx) error {
 		curs := tx.Bucket([]byte{insideout.CellPrefix()}).Cursor()
-		for k, v := curs.Seek(startKey); k != nil && bytes.Compare(k, stopKey) <= 0; k, v = curs.Next() {
 
+		for k, v := curs.Seek(startKey); k != nil && bytes.Compare(k, stopKey) <= 0; k, v = curs.Next() {
 			cr := s2.CellID(binary.BigEndian.Uint64(k[1:]))
 			if !cr.Contains(c) {
 				continue
@@ -241,7 +244,7 @@ func (s *Storage) StabDB(lat, lng float64, StopOnInsideFound bool) (insideout.In
 				res.ID = binary.BigEndian.Uint32(v[i : i+4])
 				res.Pos = binary.BigEndian.Uint16(v[i+4:])
 				mi[res] = struct{}{}
-				if StopOnInsideFound {
+				if stopOnInsideFound {
 					idxResp.IDsInside = append(idxResp.IDsInside, res)
 					return nil
 				}
@@ -253,7 +256,7 @@ func (s *Storage) StabDB(lat, lng float64, StopOnInsideFound bool) (insideout.In
 		return idxResp, err
 	}
 
-	if len(idxResp.IDsInside) > 0 && StopOnInsideFound {
+	if len(idxResp.IDsInside) > 0 && stopOnInsideFound {
 		return idxResp, nil
 	}
 
@@ -295,4 +298,217 @@ func (s *Storage) StabDB(lat, lng float64, StopOnInsideFound bool) (insideout.In
 	}
 
 	return idxResp, nil
+}
+
+func (s *Storage) Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer, ocoverer *s2.RegionCoverer,
+	warningCellsCover int, fileName, version string) error {
+	var count uint32
+
+	logger := log.With(s.logger, "component", "indexer")
+
+	err := s.Update(func(tx *bbolt.Tx) error {
+		if _, err := tx.CreateBucket(insideout.InfoKey()); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucket([]byte{insideout.FeaturePrefix()}); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucket([]byte{insideout.CellPrefix()}); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("can't create bucket into DB: %w", err)
+	}
+	for _, f := range fc.Features {
+		f := f
+		// cover inside
+		cui, err := insideout.GeoJSONCoverCellUnion(f, icoverer, true)
+		if err != nil {
+			level.Warn(logger).Log("msg", "error covering inside", "error", err, "feature_properties", f.Properties)
+			continue
+		}
+
+		// cover outside
+		cuo, err := insideout.GeoJSONCoverCellUnion(f, ocoverer, false)
+		if err != nil {
+			level.Warn(logger).Log("msg", "error covering outside", "error", err, "feature_properties", f.Properties)
+			continue
+		}
+
+		// store interior cover
+		err = s.Update(func(tx *bbolt.Tx) error {
+			for fi, cu := range cui {
+				if warningCellsCover != 0 && len(cu) > warningCellsCover {
+					level.Warn(logger).Log(
+						"msg", fmt.Sprintf("inside cover too big %d cells, polygon #%d %s", len(cui), fi, f.Properties),
+						"error", err, "feature_properties", f.Properties,
+					)
+
+					continue
+				}
+				for _, c := range cu {
+					// value is the feature id: current count, the polygon index in a multipolygon: fi
+					v := make([]byte, 6)
+					binary.BigEndian.PutUint32(v, count)
+					binary.BigEndian.PutUint16(v[4:], uint16(fi))
+					// append to existing if any
+					b := tx.Bucket([]byte{insideout.CellPrefix()})
+					ev := b.Get(insideout.InsideKey(c))
+
+					if ev != nil {
+						v = append(v, ev...)
+					}
+
+					err = b.Put(insideout.InsideKey(c), v)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("failed set inside cover into DB: %w", err)
+		}
+
+		// store outside cover
+		err = s.Update(func(tx *bbolt.Tx) error {
+			for fi, cu := range cuo {
+				if warningCellsCover != 0 && len(cu) > warningCellsCover {
+					level.Warn(logger).Log(
+						"msg", fmt.Sprintf("outisde cover too big%d polygon #%d %s", len(cui), fi, f.Properties),
+						"error", err, "feature_properties", f.Properties,
+					)
+					continue
+				}
+				for _, c := range cu {
+					// TODO: filter cells already indexed by inside cover
+
+					// value is the feature id: current count, the polygon index in a multipolygon: fi
+					v := make([]byte, 6)
+					binary.BigEndian.PutUint32(v, count)
+					binary.BigEndian.PutUint16(v[4:], uint16(fi))
+					// append to existing if any
+					b := tx.Bucket([]byte{insideout.CellPrefix()})
+					ev := b.Get(insideout.OutsideKey(c))
+					if ev != nil {
+						v = append(v, ev...)
+					}
+
+					err = b.Put(insideout.OutsideKey(c), v)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("failed set outside cover into DB: %w", err)
+		}
+
+		// store feature
+		if err := s.writeFeature(f, count, cui, cuo); err != nil {
+			return fmt.Errorf("can't store featrure into DB: %w", err)
+		}
+
+		// log.Println(f.Properties, len(cui), len(cuo))
+
+		count++
+	}
+
+	return s.writeInfos(icoverer, ocoverer, count, fileName, version)
+}
+
+func (s *Storage) writeFeature(f *geojson.Feature, id uint32, cui, cuo []s2.CellUnion) error {
+	// store feature
+	lb, err := insideout.GeoJSONEncodeLoops(f)
+	if err != nil {
+		return fmt.Errorf("can't encode loop: %w", err)
+	}
+
+	b := new(bytes.Buffer)
+	enc := cbor.NewEncoder(b, cbor.CanonicalEncOptions())
+
+	// TODO: filter cuo cui[fi].ContainsCellID(c)
+	fs := &insideout.FeatureStorage{Properties: f.Properties, LoopsBytes: lb}
+	if err := enc.Encode(fs); err != nil {
+		return fmt.Errorf("can't encode FeatureStorage: %w", err)
+	}
+
+	err = s.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte{insideout.FeaturePrefix()})
+		err := bucket.Put(insideout.FeatureKey(id), b.Bytes())
+		if err != nil {
+			return err
+		}
+		// store cells for tree
+		b = new(bytes.Buffer)
+		enc = cbor.NewEncoder(b, cbor.CanonicalEncOptions())
+		cs := &insideout.CellsStorage{
+			CellsIn:  cui,
+			CellsOut: cuo,
+		}
+
+		if err := enc.Encode(cs); err != nil {
+			return fmt.Errorf("can't encode CellsStorage: %w", err)
+		}
+
+		bucket = tx.Bucket([]byte{insideout.CellPrefix()})
+		err = bucket.Put(insideout.CellKey(id), b.Bytes())
+		if err != nil {
+			return err
+		}
+
+		level.Debug(s.logger).Log(
+			"msg", "stored FeatureStorage",
+			"feature_properties", f.Properties,
+			"loop_count", len(fs.LoopsBytes),
+			"inside_loop_id", id,
+		)
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed store feature into DB: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Storage) writeInfos(icoverer *s2.RegionCoverer, ocoverer *s2.RegionCoverer,
+	fcount uint32, fileName, version string) error {
+	infoBytes := new(bytes.Buffer)
+
+	// Finding the lowest cover level
+	minCoverLevel := ocoverer.MinLevel
+	if icoverer.MinLevel < ocoverer.MinLevel {
+		minCoverLevel = icoverer.MinLevel
+	}
+
+	infos := &insideout.IndexInfos{
+		Filename:       fileName,
+		IndexTime:      time.Now(),
+		IndexerVersion: version,
+		FeatureCount:   fcount,
+		MinCoverLevel:  minCoverLevel,
+	}
+
+	enc := cbor.NewEncoder(infoBytes, cbor.CanonicalEncOptions())
+	if err := enc.Encode(infos); err != nil {
+		return fmt.Errorf("failed encoding IndexInfos: %w", err)
+	}
+	err := s.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(insideout.InfoKey())
+		if err := b.Put(insideout.InfoKey(), infoBytes.Bytes()); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed encoding IndexInfos: %w", err)
+	}
+
+	return nil
 }

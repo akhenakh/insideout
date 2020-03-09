@@ -1,15 +1,68 @@
-## Strategy
+Insideout
+---------
 
-- full s2 index, really fast, huge memory consumption (communes france dataset)
-- Inside Tree + in memory Loops
+Insideout is a suit of software dedicated to give you the best performances to accomplish one operation, query for the position within one or more polygons:
+
+- is this location in a building ?
+- in which city are we in ?
+- what timezone ? 
+- anything where a closed polygon describe a geographical region
+
+This is the opensourced part of a project including ready to serve docker images with embedded pre indexed datasets.
+
+## Strategy
+Several strategies are available:
+
 - On disk index
+- Inside Tree in memory + in memory Loops
+- full s2 index, faster, huge memory consumption (communes france dataset)
+
+These 3 strategies give you enough choices to perform better according to your data.s
+
+## Indexer
+Choose index and tune according to your data:  
+Small sparse buildings should be indexed differently than cities also use `stopOnFirstFound` if you know only one polygon is encircling a position.
+
+```
+Usage of ./cmd/indexer/indexer:
+  -dbPath="inside.db": Database path
+  -filePath="": FeatureCollection GeoJSON file to index
+  -insideMaxCellsCover=24: Max s2 Cells count for inside cover
+  -insideMaxLevelCover=16: Max s2 level for inside cover
+  -insideMinLevelCover=10: Min s2 level for inside cover
+  -logLevel="INFO": DEBUG|INFO|WARN|ERROR
+  -outsideMaxCellsCover=16: Max s2 Cells count for outside cover
+  -outsideMaxLevelCover=15: Max s2 level for outside cover
+  -outsideMinLevelCover=10: Min s2 level for outside cover
+  -warningCellsCover=1000: warning limit cover count
+```
+
+## Insided
+
+```
+Usage of ./cmd/insided/insided:
+  -cacheCount=200: Features count to cache, 0 to disable the cache
+  -dbHost="localhost": database hostname use with postgis index only
+  -dbName="testgis": database name use with postgis index only
+  -dbPass="testgis": database password use with postgis index only
+  -dbPath="inside.db": Database path
+  -dbUser="testgis": database username use with postgis index only
+  -grpcPort=9200: gRPC API port
+  -healthPort=6666: grpc health port
+  -httpAPIPort=9201: http API port
+  -httpMetricsPort=8088: http port
+  -logLevel="INFO": DEBUG|INFO|WARN|ERROR
+  -stopOnFirstFound=false: Stop in first feature found
+  -strategy="db": Strategy to use: insidetree|shapeindex|db|postgis
+```
 
 ## K/V Engines
-Several engines have been tested: bbolt, pogreb, badger 1.6, goleveldb.
 
-For insideout particular load (read only random reads), bbolt is the best performer.
+Different engines have been tested: bbolt, pogreb, badger 1.6, goleveldb.
 
-Test with fr-communes usind db engines & insidetree when available:
+For Insideout particular load (read only random reads), bbolt is the best performer.
+
+Test with loadtester 10s fr-communes using db engines & insidetree when available:
 
 ```
  ./insided -stopOnFirstFound=true -strategy=db -cacheCount=0 -dbPath=../leveldbindexer/inside.db -dbEngine=leveldb
@@ -37,6 +90,6 @@ count 44853 rate mean 4485/s rate1 4476/s 99p 2374910
 Alloc = 286 MiB TotalAlloc = 3954 MiB   Sys = 479 MiB   NumGC = 32
 ```
 
-Pogreb is faster but does not supports prefix range and consume a bit more than bbolt.
+Pogreb is faster but does not supports prefix range and consumes a bit more than bbolt.
 
 bbolt is more capable for this load.
