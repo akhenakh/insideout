@@ -5,16 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	stdlog "log"
-	"mime"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"runtime"
-	"strings"
 	"syscall"
-	"text/template"
 	"time"
 
 	// _ "net/http/pprof"
@@ -53,7 +49,7 @@ var (
 	cacheCount      = flag.Int("cacheCount", 200, "Features count to cache, 0 to disable the cache")
 	dbPath          = flag.String("dbPath", "inside.db", "Database path")
 	httpMetricsPort = flag.Int("httpMetricsPort", 8088, "http port")
-	httpAPIPort     = flag.Int("httpAPIPort", 9201, "http API port")
+	httpAPIPort     = flag.Int("httpAPIPort", 8080, "http API port")
 	grpcPort        = flag.Int("grpcPort", 9200, "gRPC API port")
 	healthPort      = flag.Int("healthPort", 6666, "grpc health port")
 
@@ -64,8 +60,6 @@ var (
 	grpcHealthServer  *grpc.Server
 	grpcServer        *grpc.Server
 	httpMetricsServer *http.Server
-
-	templatesNames = []string{"osm-liberty-gl.style", "planet.json", "index.html", "mapbox.html"}
 )
 
 func main() {
@@ -133,7 +127,7 @@ func main() {
 	})
 
 	// server
-	server, err := server.New(storage, storage, logger, healthServer,
+	server, err := server.New(storage, logger, healthServer,
 		server.Options{
 			StopOnFirstFound: *stopOnFirstFound,
 			CacheCount:       *cacheCount,
@@ -208,74 +202,9 @@ func main() {
 
 		r.HandleFunc("/debug/cells", debug.S2CellQueryHandler)
 		r.HandleFunc("/debug/get/{fid}/{loop_index}", server.DebugGetHandler)
-		r.HandleFunc("/debug/tiles/{z}/{x}/{y}", server.TilesHandler)
 
-		// static file handler
-		fileHandler := http.FileServer(http.Dir("./static"))
-
-		// computing templates
-		pathTpls := make([]string, len(templatesNames))
-		for i, name := range templatesNames {
-			pathTpls[i] = "./static/" + name
-		}
-		t, err := template.ParseFiles(pathTpls...)
-		if err != nil {
-			level.Error(logger).Log("msg", "can't parse templates", "error", err)
-			os.Exit(2)
-		}
-
-		// serving templates and static files
-		r.PathPrefix("/debug/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			path := strings.TrimPrefix(r.URL.Path, "/debug/")
-			if path == "" {
-				path = "index.html"
-			}
-
-			// serve file normally
-			if !isTpl(path) {
-				r.URL.Path = path
-				fileHandler.ServeHTTP(w, r)
-				return
-			}
-
-			mapInfos, showMap, err := storage.LoadMapInfos()
-			if err != nil {
-				level.Error(logger).Log("msg", "error reading db", "error", err)
-				os.Exit(2)
-			}
-			lat, lng := 0.0, 0.0
-			maxZoom := 8
-			if showMap {
-				lat = mapInfos.CenterLat
-				lng = mapInfos.CenterLng
-				maxZoom = mapInfos.MaxZoom
-			}
-
-			// Templates variables
-			proto := "http"
-			if r.Header.Get("X-Forwarded-Proto") == "https" {
-				proto = "https"
-			}
-
-			p := map[string]interface{}{
-				"TilesURL":  fmt.Sprintf("%s://%s/debug", proto, r.Host),
-				"MaxZoom":   maxZoom,
-				"LocalMap":  showMap,
-				"CenterLat": lat,
-				"CenterLng": lng,
-			}
-
-			// change header base on content-type
-			ctype := mime.TypeByExtension(filepath.Ext(path))
-			w.Header().Set("Content-Type", ctype)
-
-			err = t.ExecuteTemplate(w, path, p)
-			if err != nil {
-				http.Error(w, err.Error(), 500)
-				level.Error(logger).Log("msg", "can't execute template", "error", err, "path", path)
-				return
-			}
-		})
+		// serving static files
+		r.PathPrefix("/debug/").Handler(http.StripPrefix("/debug/", http.FileServer(http.Dir("./static"))))
 
 		// within API handler
 		r.Handle("/api/within/{lat}/{lng}",
@@ -381,13 +310,4 @@ func main() {
 
 func bToMb(b uint64) uint64 {
 	return b / 1024 / 1024
-}
-
-func isTpl(path string) bool {
-	for _, p := range templatesNames {
-		if p == path {
-			return true
-		}
-	}
-	return false
 }

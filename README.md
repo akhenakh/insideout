@@ -6,18 +6,18 @@ Insideout is a suit of software dedicated to give you the best performances to a
 - is this location in a building ?
 - in which city are we in ?
 - what timezone ? 
-- anything where a closed polygon describe a geographical region
+- anything where a closed polygon describes a geographical region
 
 This is the opensourced part of a project including ready to serve docker images with embedded pre indexed datasets.
 
 ## Strategy
 Several strategies are available:
 
-- On disk index
-- Inside Tree in memory + in memory Loops
-- full s2 index, faster, huge memory consumption (communes france dataset)
+- On disk index (more reads) data can't be larger than memory
+- Inside Tree in memory (fast when a location is inside inside cover), data can't be larger than memory only indexes are in memory
+- full s2 index, fastest but huge memory consumption, wait for start since indexation is made on start
 
-These 3 strategies give you enough choices to perform better according to your data.s
+These 3 strategies give you enough choices to perform better according to your data.
 
 ## Indexer
 Choose index and tune according to your data:  
@@ -42,11 +42,7 @@ Usage of ./cmd/indexer/indexer:
 ```
 Usage of ./cmd/insided/insided:
   -cacheCount=200: Features count to cache, 0 to disable the cache
-  -dbHost="localhost": database hostname use with postgis index only
-  -dbName="testgis": database name use with postgis index only
-  -dbPass="testgis": database password use with postgis index only
   -dbPath="inside.db": Database path
-  -dbUser="testgis": database username use with postgis index only
   -grpcPort=9200: gRPC API port
   -healthPort=6666: grpc health port
   -httpAPIPort=9201: http API port

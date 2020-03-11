@@ -47,7 +47,6 @@ var (
 // Server exposes indexes services
 type Server struct {
 	storage      insideout.Store
-	tileStorage  insideout.TileStore
 	logger       log.Logger
 	cache        *ristretto.Cache
 	healthServer *health.Server
@@ -61,8 +60,8 @@ type Options struct {
 }
 
 // New returns a Server
-func New(storage insideout.Store, tileStorage insideout.TileStore,
-	logger log.Logger, healthServer *health.Server, opts Options) (*Server, error) {
+func New(storage insideout.Store, logger log.Logger, healthServer *health.Server,
+	opts Options) (*Server, error) {
 	logger = log.With(logger, "component", "server")
 
 	var idx insideout.Index
@@ -91,7 +90,6 @@ func New(storage insideout.Store, tileStorage insideout.TileStore,
 
 	s := &Server{
 		storage:      storage,
-		tileStorage:  tileStorage,
 		logger:       logger,
 		healthServer: healthServer,
 		idx:          idx,

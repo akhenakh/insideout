@@ -20,10 +20,6 @@ type Store interface {
 		warningCellsCover int, fileName, version string) error
 }
 
-type TileStore interface {
-	ReadTileData(z uint8, x uint64, y uint64) ([]byte, error)
-}
-
 // FeatureStorage on disk storage of the feature
 type FeatureStorage struct {
 	Properties map[string]interface{}
@@ -56,6 +52,8 @@ type IndexInfos struct {
 type MapInfos struct {
 	CenterLat, CenterLng float64
 	MaxZoom              int
+	Region               string
+	IndexTime            time.Time
 }
 
 func (infos *IndexInfos) String() string {

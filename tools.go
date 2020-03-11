@@ -49,7 +49,7 @@ func GeoJSONCoverCellUnion(f *geojson.Feature, coverer *s2.RegionCoverer, interi
 			p := rg.Polygon(i)
 			cup, err := coverPolygon(p.FlatCoords(), coverer, interior)
 			if err != nil {
-				return nil, errors.Wrap(err, "can't cover polygon")
+				return nil, errors.Wrapf(err, "can't cover multi polygon %d", i)
 			}
 			cu = append(cu, cup)
 		}

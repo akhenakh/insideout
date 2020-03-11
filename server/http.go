@@ -3,7 +3,6 @@ package server
 import (
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/gogo/protobuf/jsonpb"
 	structpb "github.com/golang/protobuf/ptypes/struct"
@@ -119,30 +118,4 @@ func (s *Server) WithinHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(json)
-}
-
-// TilesHandler serves the mbtiles at /debug/tiles/11/618/722.pbf
-func (s *Server) TilesHandler(w http.ResponseWriter, req *http.Request) {
-	sp := strings.Split(req.URL.Path, "/")
-
-	if len(sp) != 6 {
-		http.Error(w, "Invalid query", http.StatusBadRequest)
-		return
-	}
-	z, _ := strconv.Atoi(sp[3])
-	x, _ := strconv.Atoi(sp[4])
-	y, _ := strconv.Atoi(strings.Trim(sp[5], ".pbf"))
-
-	data, err := s.tileStorage.ReadTileData(uint8(z), uint64(x), uint64(1<<uint(z)-y-1))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if len(data) == 0 {
-		http.NotFound(w, req)
-		return
-	}
-	w.Header().Set("Content-Type", "application/x-protobuf")
-	w.Header().Set("Content-Encoding", "gzip")
-	_, _ = w.Write(data)
 }

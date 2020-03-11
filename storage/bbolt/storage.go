@@ -342,8 +342,8 @@ func (s *Storage) Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer
 			for fi, cu := range cui {
 				if warningCellsCover != 0 && len(cu) > warningCellsCover {
 					level.Warn(logger).Log(
-						"msg", fmt.Sprintf("inside cover too big %d cells, polygon #%d %s", len(cui), fi, f.Properties),
-						"error", err, "feature_properties", f.Properties,
+						"msg", fmt.Sprintf("inside cover too big %d cells, not indexing polygon #%d %s", len(cui), fi, f.Properties),
+						"feature_properties", f.Properties,
 					)
 
 					continue
@@ -378,8 +378,8 @@ func (s *Storage) Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer
 			for fi, cu := range cuo {
 				if warningCellsCover != 0 && len(cu) > warningCellsCover {
 					level.Warn(logger).Log(
-						"msg", fmt.Sprintf("outisde cover too big%d polygon #%d %s", len(cui), fi, f.Properties),
-						"error", err, "feature_properties", f.Properties,
+						"msg", fmt.Sprintf("outisde cover too big %d not indexing polygon #%d %s", len(cui), fi, f.Properties),
+						"feature_properties", f.Properties,
 					)
 					continue
 				}

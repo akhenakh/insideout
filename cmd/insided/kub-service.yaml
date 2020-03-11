@@ -9,7 +9,7 @@ metadata:
     type: "http"
 spec:
   ports:
-    - port: 9201
+    - port: 8080
       name: "http"
       targetPort: http
       protocol: TCP
@@ -33,7 +33,7 @@ spec:
       kind: Rule
       services:
         - name: insided-http
-          port: 9201
+          port: 8080
   tls:
     certResolver: default
 ---
@@ -52,4 +52,4 @@ spec:
       kind: Rule
       services:
         - name: insided-http
-          port: 9201
+          port: 8080
