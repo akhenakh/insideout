@@ -13,8 +13,8 @@ This is the opensourced part of a project including ready to serve docker images
 ## Strategy
 Several strategies are available:
 
-- On disk index (more reads) data can't be larger than memory
-- Inside Tree in memory (fast when a location is inside inside cover), data can't be larger than memory only indexes are in memory
+- On disk index (more reads) data can be larger than memory
+- Inside Tree in memory (fast when a location is inside inside cover), data can be larger than memory only indexes are in memory
 - full s2 index, fastest but huge memory consumption, wait for start since indexation is made on start
 
 These 3 strategies give you enough choices to perform better according to your data.
