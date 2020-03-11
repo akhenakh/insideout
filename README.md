@@ -19,8 +19,40 @@ Several strategies are available:
 
 These 3 strategies give you enough choices to perform better according to your data.
 
+## APIS
+
+Two sets of API are provided:
+- one using gRPC
+  ```proto
+     service Inside {
+         //  Stab returns features containing lat lng
+         rpc Within(WithinRequest) returns (WithinResponse) {}
+         // Get returns a feature by its internal ID and polygon index
+         rpc Get(GetRequest) returns (Feature) {}
+     }
+  ```
+- one basic HTTP
+  `/api/within/{lat}/{lng}`
+
+Metrics are provided via Prometheus at `http://host:httpMetricsPort/metrics`.
+
+A debug visual map is available at  `http://host:httpAPIPort/debug/`.
+
+Health status is provided via gRPC `host:healthPort` or via basic HTTP `http://host:httpAPIPort/healthz`.
+
+## Docker & Kubernetes
+
+Main goal of insideout is to be used with container image with pre embedded indexes, ready to run.
+
+There is a simple demo with preindexed [Natural Earth data 110m countries](https://www.naturalearthdata.com/downloads/110m-cultural-vectors/):
+
+```
+docker run --rm -it -p 8080:8080 akhenakh/insideout-demo:latest 
+```
+Point your browser onto http://yourip:8080/debug/
+
 ## Indexer
-Choose index and tune according to your data:  
+Tune your index parameters according to your data:  
 Small sparse buildings should be indexed differently than cities also use `stopOnFirstFound` if you know only one polygon is encircling a position.
 
 ```
