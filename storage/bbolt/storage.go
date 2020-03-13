@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fxamacker/cbor"
+	"github.com/fxamacker/cbor/v2"
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/golang/geo/s2"
@@ -151,36 +151,6 @@ func (s *Storage) LoadFeaturesCells(add func([]s2.CellUnion, []s2.CellUnion, uin
 		return nil
 	})
 	return err
-}
-
-// LoadMapInfos loads map infos from the DB if any
-func (s *Storage) LoadMapInfos() (*insideout.MapInfos, bool, error) {
-	var mapInfos *insideout.MapInfos
-	err := s.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(insideout.MapKey())
-		if b == nil {
-			return nil
-		}
-		value := b.Get(insideout.MapKey())
-		if value == nil {
-			return nil
-		}
-		mapInfos = &insideout.MapInfos{}
-		dec := cbor.NewDecoder(bytes.NewReader(value))
-		if err := dec.Decode(mapInfos); err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, false, err
-	}
-
-	if mapInfos == nil {
-		return nil, false, nil
-	}
-
-	return mapInfos, true, nil
 }
 
 // LoadIndexInfos loads index infos from the DB
@@ -429,35 +399,32 @@ func (s *Storage) writeFeature(f *geojson.Feature, id uint32, cui, cuo []s2.Cell
 		return fmt.Errorf("can't encode loop: %w", err)
 	}
 
-	b := new(bytes.Buffer)
-	enc := cbor.NewEncoder(b, cbor.CanonicalEncOptions())
-
 	// TODO: filter cuo cui[fi].ContainsCellID(c)
 	fs := &insideout.FeatureStorage{Properties: f.Properties, LoopsBytes: lb}
-	if err := enc.Encode(fs); err != nil {
+	b, err := cbor.Marshal(fs)
+	if err != nil {
 		return fmt.Errorf("can't encode FeatureStorage: %w", err)
 	}
 
 	err = s.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte{insideout.FeaturePrefix()})
-		err := bucket.Put(insideout.FeatureKey(id), b.Bytes())
+		err := bucket.Put(insideout.FeatureKey(id), b)
 		if err != nil {
 			return err
 		}
 		// store cells for tree
-		b = new(bytes.Buffer)
-		enc = cbor.NewEncoder(b, cbor.CanonicalEncOptions())
+
 		cs := &insideout.CellsStorage{
 			CellsIn:  cui,
 			CellsOut: cuo,
 		}
-
-		if err := enc.Encode(cs); err != nil {
+		b, err := cbor.Marshal(cs)
+		if err != nil {
 			return fmt.Errorf("can't encode CellsStorage: %w", err)
 		}
 
 		bucket = tx.Bucket([]byte{insideout.CellPrefix()})
-		err = bucket.Put(insideout.CellKey(id), b.Bytes())
+		err = bucket.Put(insideout.CellKey(id), b)
 		if err != nil {
 			return err
 		}
@@ -479,7 +446,6 @@ func (s *Storage) writeFeature(f *geojson.Feature, id uint32, cui, cuo []s2.Cell
 
 func (s *Storage) writeInfos(icoverer *s2.RegionCoverer, ocoverer *s2.RegionCoverer,
 	fcount uint32, fileName, version string) error {
-	infoBytes := new(bytes.Buffer)
 
 	// Finding the lowest cover level
 	minCoverLevel := ocoverer.MinLevel
@@ -495,13 +461,13 @@ func (s *Storage) writeInfos(icoverer *s2.RegionCoverer, ocoverer *s2.RegionCove
 		MinCoverLevel:  minCoverLevel,
 	}
 
-	enc := cbor.NewEncoder(infoBytes, cbor.CanonicalEncOptions())
-	if err := enc.Encode(infos); err != nil {
+	infoBytes, err := cbor.Marshal(infos)
+	if err != nil {
 		return fmt.Errorf("failed encoding IndexInfos: %w", err)
 	}
-	err := s.Update(func(tx *bbolt.Tx) error {
+	err = s.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(insideout.InfoKey())
-		if err := b.Put(insideout.InfoKey(), infoBytes.Bytes()); err != nil {
+		if err := b.Put(insideout.InfoKey(), infoBytes); err != nil {
 			return err
 		}
 		return nil

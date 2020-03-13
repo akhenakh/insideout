@@ -5,7 +5,7 @@ go 1.13
 require (
 	github.com/akhenakh/insidetree v0.0.0-20200117162430-1aba251a8a6a
 	github.com/dgraph-io/ristretto v0.0.2
-	github.com/fxamacker/cbor v1.5.0
+	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/go-kit/kit v0.9.0
 	github.com/go-logfmt/logfmt v0.5.0 // indirect
 	github.com/gogo/protobuf v1.2.1
@@ -16,7 +16,6 @@ require (
 	github.com/gorilla/mux v1.7.3
 	github.com/grpc-ecosystem/go-grpc-middleware v1.1.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
-	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/namsral/flag v1.7.4-pre
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/pkg/errors v0.9.1

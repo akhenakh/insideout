@@ -49,7 +49,7 @@ import (
 29 	 	2.95 			cm2 	  	17 mm 	18 mm
 30 	 	0.74 			cm2 	  	8 mm 	9 mm
 */
-const appName = "bboltindexer"
+const appName = "indexer"
 
 var (
 	version = "no version from LDFLAGS"
