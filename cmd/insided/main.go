@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	stdlog "log"
 	"net"
@@ -155,7 +156,7 @@ func main() {
 		// Register Prometheus metrics handler.
 		http.Handle("/metrics", promhttp.Handler())
 
-		if err := httpMetricsServer.ListenAndServe(); err != http.ErrServerClosed {
+		if err := httpMetricsServer.ListenAndServe(); errors.Is(err, http.ErrServerClosed) {
 			return err
 		}
 
@@ -218,7 +219,8 @@ func main() {
 			defer cancel()
 
 			resp, err := healthServer.Check(ctx, &healthpb.HealthCheckRequest{
-				Service: fmt.Sprintf("grpc.health.v1.%s", appName)},
+				Service: fmt.Sprintf("grpc.health.v1.%s", appName),
+			},
 			)
 			if err != nil {
 				json := []byte(fmt.Sprintf("{\"status\": \"%s\"}", healthpb.HealthCheckResponse_UNKNOWN.String()))
@@ -248,7 +250,7 @@ func main() {
 		}
 		level.Info(logger).Log("msg", fmt.Sprintf("HTTP API server listening at :%d", *httpAPIPort))
 
-		if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
+		if err := httpServer.ListenAndServe(); errors.Is(err, http.ErrServerClosed) {
 			return err
 		}
 
@@ -257,7 +259,7 @@ func main() {
 
 	level.Info(logger).Log("msg", "read index_infos", "feature_count", infos.FeatureCount)
 
-	//TODO: perform a query first for shapeindex to be ready
+	// TODO: perform a query first for shapeindex to be ready
 
 	healthServer.SetServingStatus(fmt.Sprintf("grpc.health.v1.%s", appName), healthpb.HealthCheckResponse_SERVING)
 	level.Info(logger).Log("msg", "serving status to SERVING")
@@ -265,6 +267,7 @@ func main() {
 	select {
 	case <-interrupt:
 		cancel()
+
 		break
 	case <-ctx.Done():
 		break

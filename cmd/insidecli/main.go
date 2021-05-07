@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	//_ "github.com/mbobakov/grpc-consul-resolver"
+	// _ "github.com/mbobakov/grpc-consul-resolver"
 	"github.com/namsral/flag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"

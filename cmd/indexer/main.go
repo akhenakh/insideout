@@ -48,6 +48,7 @@ import (
 28 	 	11.80 			cm2 	  	3 cm 	4 cm
 29 	 	2.95 			cm2 	  	17 mm 	18 mm
 30 	 	0.74 			cm2 	  	8 mm 	9 mm
+Cells surface and size.
 */
 const appName = "bboltindexer"
 
@@ -70,6 +71,9 @@ var (
 func main() {
 	flag.Parse()
 
+	const exitcode = 0
+	defer func() { os.Exit(exitcode) }()
+
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stdout))
 	logger = log.With(logger, "caller", log.Caller(5), "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "app", appName)
@@ -84,21 +88,25 @@ func main() {
 	file, err := os.Open(*filePath)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to open GeoJSON", "error", err, "file_path", *filePath)
-		os.Exit(2)
+
+		return
 	}
 	defer file.Close()
 
 	decoder := json.NewDecoder(file)
+
 	err = decoder.Decode(&fc)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to decode GeoJSON", "error", err, "file_path", *filePath)
-		os.Exit(2)
+
+		return
 	}
 
 	storage, clean, err := sbbolt.NewStorage(*dbPath, logger)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
-		os.Exit(2)
+
+		return
 	}
 	defer clean()
 
@@ -116,7 +124,8 @@ func main() {
 	err = storage.Index(fc, icoverer, ocoverer, *warningCellsCover, path.Base(*filePath), version)
 	if err != nil {
 		level.Error(logger).Log("msg", "indexation failed", "error", err)
-		os.Exit(2)
+
+		return
 	}
 	level.Info(logger).Log("msg", "stored index_infos")
 }

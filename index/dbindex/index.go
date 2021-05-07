@@ -11,7 +11,7 @@ type Index struct {
 	opts Options
 }
 
-// Options for the dbindex
+// Options for the dbindex.
 type Options struct {
 	// StopOnInside, if you know your data does not overlap (eg countries) set it to true
 	// so it won't go looking further and response faster

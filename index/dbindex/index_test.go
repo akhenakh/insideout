@@ -1,4 +1,4 @@
-package dbindex
+package dbindex_test
 
 import (
 	"encoding/json"
@@ -13,6 +13,7 @@ import (
 	"github.com/twpayne/go-geom/encoding/geojson"
 
 	"github.com/akhenakh/insideout"
+	"github.com/akhenakh/insideout/index/dbindex"
 	"github.com/akhenakh/insideout/storage/bbolt"
 )
 
@@ -26,21 +27,23 @@ func TestDBIndex_Stab(t *testing.T) {
 		want     insideout.IndexResponse
 		wantErr  bool
 	}{
-		{"inside loop not within inside index",
+		{
+			"inside loop not within inside index",
 			47.39444367083928, -2.992874768945723,
 			insideout.IndexResponse{
 				IDsInside: nil,
-				IDsMayBeInside: []insideout.FeatureIndexResponse{insideout.FeatureIndexResponse{
+				IDsMayBeInside: []insideout.FeatureIndexResponse{{
 					ID:  0,
 					Pos: 1,
 				}},
 			},
 			false,
 		},
-		{"inside loop within inside index",
+		{
+			"inside loop within inside index",
 			47.39650628189986, -2.9876390969486524,
 			insideout.IndexResponse{
-				IDsInside: []insideout.FeatureIndexResponse{insideout.FeatureIndexResponse{
+				IDsInside: []insideout.FeatureIndexResponse{{
 					ID:  0,
 					Pos: 1,
 				}},
@@ -48,18 +51,20 @@ func TestDBIndex_Stab(t *testing.T) {
 			},
 			false,
 		},
-		{"outside loop within outside index",
+		{
+			"outside loop within outside index",
 			47.38297924900667, -2.961873380366456,
 			insideout.IndexResponse{
 				IDsInside: nil,
-				IDsMayBeInside: []insideout.FeatureIndexResponse{insideout.FeatureIndexResponse{
+				IDsMayBeInside: []insideout.FeatureIndexResponse{{
 					ID:  0,
 					Pos: 1,
 				}},
 			},
 			false,
 		},
-		{"outside loop outside outside index",
+		{
+			"outside loop outside outside index",
 			47.37616957736262, -3.004367209321472,
 			insideout.IndexResponse{
 				IDsInside:      nil,
@@ -75,6 +80,7 @@ func TestDBIndex_Stab(t *testing.T) {
 			got, err := treeidx.Stab(tt.lat, tt.lng)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Stab() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			if !cmp.Equal(got, tt.want) {
@@ -84,7 +90,9 @@ func TestDBIndex_Stab(t *testing.T) {
 	}
 }
 
-func setup(t *testing.T) (*Index, func()) {
+func setup(t *testing.T) (*dbindex.Index, func()) {
+	t.Helper()
+
 	logger := log.NewLogfmtLogger(os.Stdout)
 
 	tmpFile, err := ioutil.TempFile(os.TempDir(), "insideout-test-")
@@ -96,6 +104,7 @@ func setup(t *testing.T) (*Index, func()) {
 
 	file, err := os.Open("../testdata/poly.geojson")
 	require.NoError(t, err)
+
 	defer file.Close()
 
 	decoder := json.NewDecoder(file)
@@ -120,13 +129,13 @@ func setup(t *testing.T) (*Index, func()) {
 	require.NoError(t, err)
 
 	// RO storage
-	storage, close, err := bbolt.NewStorage(tmpFile.Name(), logger)
+	storage, bclose, err := bbolt.NewStorage(tmpFile.Name(), logger)
 	require.NoError(t, err)
 
-	dbidx := New(storage, Options{StopOnInsideFound: true})
+	dbidx := dbindex.New(storage, dbindex.Options{StopOnInsideFound: true})
 
 	return dbidx, func() {
-		close()
+		bclose()
 		os.Remove(tmpFile.Name())
 	}
 }

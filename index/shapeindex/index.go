@@ -2,6 +2,7 @@ package shapeindex
 
 import (
 	"bytes"
+	"errors"
 	"sync"
 
 	"github.com/golang/geo/s2"
@@ -65,8 +66,13 @@ func (idx *Index) Stab(lat, lng float64) (insideout.IndexResponse, error) {
 	shapes := idx.ContainsPointQuery.ContainingShapes(p)
 
 	for _, shape := range shapes {
-		il := shape.(indexedLoop)
+		il, ok := shape.(indexedLoop)
+		if !ok {
+			return idxResp, errors.New("invalid type read from db")
+		}
+
 		idxResp.IDsInside = append(idxResp.IDsInside, il.FeatureIndexResponse)
 	}
+
 	return idxResp, nil
 }

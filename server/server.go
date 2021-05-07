@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/dgraph-io/ristretto"
@@ -33,18 +34,18 @@ var (
 
 	featureHitCounter = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "insided_server",
-		Name:      "feature_cache_hit",
+		Name:      "feature_cache_hit_total",
 		Help:      "Features cache hits",
 	})
 
 	featureMissCounter = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "insided_server",
-		Name:      "feature_miss_hit",
+		Name:      "feature_miss_hit_total",
 		Help:      "Features miss hits",
 	})
 )
 
-// Server exposes indexes services
+// Server exposes indexes services.
 type Server struct {
 	storage      insideout.Store
 	logger       log.Logger
@@ -59,7 +60,7 @@ type Options struct {
 	Strategy         string
 }
 
-// New returns a Server
+// New returns a Server.
 func New(storage insideout.Store, logger log.Logger, healthServer *health.Server,
 	opts Options) (*Server, error) {
 	logger = log.With(logger, "component", "server")
@@ -116,14 +117,17 @@ func (s *Server) feature(id uint32) (*insideout.Feature, error) {
 	if s.cache == nil {
 		return s.storage.LoadFeature(id)
 	}
+
 	fi, found := s.cache.Get(id)
 	if !found {
 		lf, err := s.storage.LoadFeature(id)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error loading feature: %w", err)
 		}
+
 		s.cache.Set(id, lf, 1)
 		featureMissCounter.Inc()
+
 		return lf, nil
 	}
 
@@ -142,7 +146,7 @@ func (s *Server) Within(
 
 	idxResp, err := s.idx.Stab(req.Lat, req.Lng)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("stabbing error: %w", err)
 	}
 
 	level.Debug(s.logger).Log("msg", "querying within",
@@ -178,7 +182,7 @@ func (s *Server) Within(
 			}
 		}
 
-		//TODO: filter properties
+		// TODO: filter properties
 		prop, err := insideout.PropertiesToValues(f)
 		if err != nil {
 			return nil, err
@@ -228,7 +232,7 @@ func (s *Server) Within(
 			}
 		}
 
-		//TODO: filter properties
+		// TODO: filter properties
 		prop, err := insideout.PropertiesToValues(f)
 		if err != nil {
 			return nil, err
@@ -318,8 +322,9 @@ func (s *Server) IndexStab(lat, lng float64) ([]*insideout.Feature, error) {
 	var res []*insideout.Feature
 	idxResp, err := s.idx.Stab(lat, lng)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("stabbing error: %w", err)
 	}
+
 	for _, fid := range idxResp.IDsInside {
 		f, err := s.feature(fid.ID)
 		if err != nil {

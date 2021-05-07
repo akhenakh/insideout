@@ -27,10 +27,11 @@ func TestShapeIndex_Stab(t *testing.T) {
 		want     insideout.IndexResponse
 		wantErr  bool
 	}{
-		{"inside loop",
+		{
+			"inside loop",
 			47.3944602327291, -2.9924373872714556,
 			insideout.IndexResponse{
-				IDsInside: []insideout.FeatureIndexResponse{insideout.FeatureIndexResponse{
+				IDsInside: []insideout.FeatureIndexResponse{{
 					ID:  0,
 					Pos: 1,
 				}},
@@ -38,7 +39,8 @@ func TestShapeIndex_Stab(t *testing.T) {
 			},
 			false,
 		},
-		{"outside loop",
+		{
+			"outside loop",
 			47.38297924900667, -2.961873380366456,
 			insideout.IndexResponse{
 				IDsInside:      nil,
@@ -51,9 +53,11 @@ func TestShapeIndex_Stab(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := shapeidx.Stab(tt.lat, tt.lng)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Stab() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			if !cmp.Equal(got, tt.want) {
@@ -64,6 +68,8 @@ func TestShapeIndex_Stab(t *testing.T) {
 }
 
 func setup(t *testing.T) (*Index, func()) {
+	t.Helper()
+
 	logger := log.NewNopLogger()
 
 	tmpFile, err := ioutil.TempFile(os.TempDir(), "insideout-test-")
@@ -99,7 +105,7 @@ func setup(t *testing.T) (*Index, func()) {
 	require.NoError(t, err)
 
 	// RO storage
-	storage, close, err := bbolt.NewStorage(tmpFile.Name(), logger)
+	storage, bclose, err := bbolt.NewStorage(tmpFile.Name(), logger)
 	require.NoError(t, err)
 
 	shapeidx := New()
@@ -107,7 +113,7 @@ func setup(t *testing.T) (*Index, func()) {
 	require.NoError(t, err)
 
 	return shapeidx, func() {
-		close()
+		bclose()
 		os.Remove(tmpFile.Name())
 	}
 }

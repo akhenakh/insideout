@@ -39,6 +39,9 @@ var (
 func main() {
 	flag.Parse()
 
+	const exitcode = 0
+	defer func() { os.Exit(exitcode) }()
+
 	// pprof
 	// go func() {
 	// 	stdlog.Println(http.ListenAndServe("localhost:6060", nil))
@@ -59,7 +62,8 @@ func main() {
 	)
 	if err != nil {
 		level.Error(logger).Log("msg", "error dialing", "error", err)
-		os.Exit(2)
+
+		return
 	}
 
 	c := insidesvc.NewInsideClient(conn)
@@ -72,12 +76,16 @@ func main() {
 	// catch termination
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)
+
 	defer signal.Stop(interrupt)
 
 	var wg sync.WaitGroup
+
 	wg.Add(1)
+
 	go func() {
 		defer wg.Done()
+
 		tm := metrics.NewTimer()
 
 		req := &insidesvc.WithinRequest{
@@ -85,6 +93,7 @@ func main() {
 			Lng:              *latMax,
 			RemoveGeometries: true,
 		}
+
 		for {
 			ctx, rcancel := context.WithTimeout(ctx, 200*time.Millisecond)
 
@@ -99,8 +108,10 @@ func main() {
 				level.Error(logger).Log("msg", "error with request", "error", err)
 				rcancel()
 				cancel()
+
 				break
 			}
+
 			tm.UpdateSince(t)
 
 			rcancel()
@@ -115,13 +126,16 @@ func main() {
 				)
 			}
 		}
-		fmt.Printf("count %d rate mean %.0f/s rate1 %.0f/s 99p %.0f\n",
+
+		msg := fmt.Sprintf("count %d rate mean %.0f/s rate1 %.0f/s 99p %.0f\n",
 			tm.Count(), tm.RateMean(), tm.Rate1(), tm.Percentile(99.0))
+		level.Info(logger).Log("msg", msg)
 	}()
 
 	select {
 	case <-interrupt:
 		cancel()
+
 		break
 	case <-ctx.Done():
 		break

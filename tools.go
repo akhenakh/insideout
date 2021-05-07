@@ -34,6 +34,7 @@ func GeoJSONCoverCellUnion(f *geojson.Feature, coverer *s2.RegionCoverer, interi
 	if f.Geometry == nil {
 		return nil, errors.New("invalid geometry")
 	}
+
 	var cu []s2.CellUnion
 
 	switch rg := f.Geometry.(type) {
@@ -41,16 +42,19 @@ func GeoJSONCoverCellUnion(f *geojson.Feature, coverer *s2.RegionCoverer, interi
 		// only supports outer ring
 		cup, err := coverPolygon(rg.FlatCoords(), coverer, interior)
 		if err != nil {
-			return nil, errors.Wrap(err, "can't cover polygon")
+			return nil, fmt.Errorf("can't cover polygon: %w", err)
 		}
+
 		cu = append(cu, cup)
 	case *geom.MultiPolygon:
 		for i := 0; i < rg.NumPolygons(); i++ {
 			p := rg.Polygon(i)
+
 			cup, err := coverPolygon(p.FlatCoords(), coverer, interior)
 			if err != nil {
-				return nil, errors.Wrapf(err, "can't cover multi polygon %d", i)
+				return nil, fmt.Errorf("can't cover multi polygon %d: %w", i, err)
 			}
+
 			cu = append(cu, cup)
 		}
 
@@ -66,6 +70,7 @@ func GeoJSONEncodeLoops(f *geojson.Feature) ([][]byte, error) {
 	if f.Geometry == nil {
 		return nil, errors.New("invalid geometry")
 	}
+
 	var b [][]byte
 
 	switch rg := f.Geometry.(type) {
@@ -73,10 +78,12 @@ func GeoJSONEncodeLoops(f *geojson.Feature) ([][]byte, error) {
 		// only supports outer ring
 		lb := new(bytes.Buffer)
 		l := LoopFromCoordinates(rg.FlatCoords())
+
 		err := l.Encode(lb)
 		if err != nil {
-			return nil, errors.Wrap(err, "can't encode polygon")
+			return nil, fmt.Errorf("can't encode polygon: %w", err)
 		}
+
 		b = append(b, lb.Bytes())
 
 	case *geom.MultiPolygon:
@@ -84,10 +91,12 @@ func GeoJSONEncodeLoops(f *geojson.Feature) ([][]byte, error) {
 			lb := new(bytes.Buffer)
 			p := rg.Polygon(i)
 			l := LoopFromCoordinates(p.FlatCoords())
+
 			err := l.Encode(lb)
 			if err != nil {
-				return nil, errors.Wrap(err, "can't encode polygon")
+				return nil, fmt.Errorf("can't encode polygon: %w", err)
 			}
+
 			b = append(b, lb.Bytes())
 		}
 
@@ -103,16 +112,20 @@ func coverPolygon(c []float64, coverer *s2.RegionCoverer, interior bool) (s2.Cel
 	if len(c) < 6 {
 		return nil, errors.New("invalid polygons not enough coordinates for a closed polygon")
 	}
+
 	if len(c)%2 != 0 {
 		return nil, errors.New("invalid polygons odd coordinates number")
 	}
+
 	l := LoopFromCoordinates(c)
 	if l.IsEmpty() || l.IsFull() || l.ContainsOrigin() {
 		return nil, errors.New("invalid polygons")
 	}
+
 	if interior {
 		return coverer.InteriorCovering(l), nil
 	}
+
 	return coverer.Covering(l), nil
 }
 
@@ -133,6 +146,7 @@ func LoopFromCoordinates(c []float64) *s2.Loop {
 	}
 
 	loop := s2.LoopFromPoints(points)
+
 	return loop
 }
 
@@ -156,6 +170,7 @@ func InsideKey(c s2.CellID) []byte {
 	k := make([]byte, 1+8)
 	k[0] = insidePrefix
 	binary.BigEndian.PutUint64(k[1:], uint64(c))
+
 	return k
 }
 
@@ -167,6 +182,7 @@ func InsideRangeKeys(c s2.CellID) ([]byte, []byte) {
 	maxk := make([]byte, 1+8)
 	maxk[0] = insidePrefix
 	binary.BigEndian.PutUint64(maxk[1:], uint64(c.RangeMax()))
+
 	return mink, maxk
 }
 
@@ -174,6 +190,7 @@ func OutsideKey(c s2.CellID) []byte {
 	k := make([]byte, 1+8)
 	k[0] = outsidePrefix
 	binary.BigEndian.PutUint64(k[1:], uint64(c))
+
 	return k
 }
 
@@ -185,6 +202,7 @@ func OutsideRangeKeys(c s2.CellID) ([]byte, []byte) {
 	maxk := make([]byte, 1+8)
 	maxk[0] = outsidePrefix
 	binary.BigEndian.PutUint64(maxk[1:], uint64(c.RangeMax()))
+
 	return mink, maxk
 }
 
@@ -193,6 +211,7 @@ func FeatureKey(id uint32) []byte {
 	k := make([]byte, 1+4)
 	k[0] = featurePrefix
 	binary.BigEndian.PutUint32(k[1:], id)
+
 	return k
 }
 
@@ -201,6 +220,7 @@ func CellKey(id uint32) []byte {
 	k := make([]byte, 1+4)
 	k[0] = cellPrefix
 	binary.BigEndian.PutUint32(k[1:], id)
+
 	return k
 }
 
@@ -227,6 +247,7 @@ func FeaturePrefix() byte {
 // PropertiesToValues converts feature's properties to protobuf Value
 func PropertiesToValues(f *Feature) (map[string]*spb.Value, error) {
 	m := make(map[string]*spb.Value)
+
 	for k, vi := range f.Properties {
 		switch tv := vi.(type) {
 		case bool:
@@ -261,6 +282,7 @@ func ValueToProperties(src map[string]*spb.Value) map[string]interface{} {
 			res[k] = x.BoolValue
 		}
 	}
+
 	return res
 }
 
@@ -271,11 +293,13 @@ func CellUnionToTokens(cu s2.CellUnion) []string {
 	for i, c := range cu {
 		res[i] = c.ToToken()
 	}
+
 	return res
 }
 
 // CellUnionToToken return a comma separated list of tokens
 func CellUnionToToken(cu s2.CellUnion) string {
 	l := CellUnionToTokens(cu)
+
 	return strings.Join(l, ",")
 }

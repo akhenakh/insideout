@@ -15,14 +15,18 @@ import (
 // ?cells=TokenID,...
 func S2CellQueryHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
+
 	sval := query.Get("cells")
 	if sval == "" {
 		http.Error(w, "invalid parameters", 400)
+
 		return
 	}
+
 	cells := strings.Split(sval, ",")
 	if len(cells) == 0 {
 		http.Error(w, "invalid parameters", 400)
+
 		return
 	}
 
@@ -39,9 +43,10 @@ func S2CellQueryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // CellUnionToGeoJSON helpers to display s2 cells on maps with GeoJSON
-// exports cell union into its GeoJSON representation
+// exports cell union into its GeoJSON representation.
 func CellUnionToGeoJSON(cu s2.CellUnion) []byte {
 	fc := geojson.FeatureCollection{}
+
 	for _, cid := range cu {
 		f := &geojson.Feature{}
 		f.Properties = make(map[string]interface{})
@@ -52,6 +57,7 @@ func CellUnionToGeoJSON(cu s2.CellUnion) []byte {
 
 		c := s2.CellFromCellID(cid)
 		coords := make([]float64, 5*2)
+
 		for i := 0; i < 4; i++ {
 			p := c.Vertex(i)
 			ll := s2.LatLngFromPoint(p)
@@ -64,16 +70,19 @@ func CellUnionToGeoJSON(cu s2.CellUnion) []byte {
 		f.Geometry = ng
 		fc.Features = append(fc.Features, f)
 	}
+
 	b, _ := fc.MarshalJSON()
+
 	return b
 }
 
-// CellUnionToTokens a cell union to a token string list
+// CellUnionToTokens a cell union to a token string list.
 func CellUnionToTokens(cu s2.CellUnion) []string {
 	res := make([]string, len(cu))
 
 	for i, c := range cu {
 		res[i] = c.ToToken()
 	}
+
 	return res
 }

@@ -20,7 +20,9 @@ linters:
     - dupl
     - funlen
     - godox
-    - wsl
+    - exhaustivestruct
+    - gomnd
+    - forbidigo
   presets:
     - bugs
     - unused

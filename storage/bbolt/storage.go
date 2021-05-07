@@ -18,22 +18,20 @@ import (
 	"github.com/akhenakh/insideout"
 )
 
-var (
-	featureStoragePool = sync.Pool{
-		New: func() interface{} {
-			return &insideout.FeatureStorage{}
-		},
-	}
-)
+var featureStoragePool = sync.Pool{
+	New: func() interface{} {
+		return &insideout.FeatureStorage{}
+	},
+}
 
-// Storage cold storage
+// Storage cold storage.
 type Storage struct {
 	*bbolt.DB
 	logger        log.Logger
 	minCoverLevel int
 }
 
-// NewStorage returns a cold storage using bboltdb
+// NewStorage returns a cold storage using bboltdb.
 func NewStorage(path string, logger log.Logger) (*Storage, func() error, error) {
 	// Creating DB
 	db, err := bbolt.Open(path, 0600, nil)
@@ -47,7 +45,7 @@ func NewStorage(path string, logger log.Logger) (*Storage, func() error, error) 
 	}, db.Close, nil
 }
 
-// NewROStorage returns a read only storage using bboltdb
+// NewROStorage returns a read only storage using bboltdb.
 func NewROStorage(path string, logger log.Logger) (*Storage, func() error, error) {
 	// Creating DB
 	db, err := bbolt.Open(path, 0600, &bbolt.Options{ReadOnly: true})
@@ -69,7 +67,7 @@ func NewROStorage(path string, logger log.Logger) (*Storage, func() error, error
 	return s, db.Close, nil
 }
 
-// LoadFeature loads one feature from the DB
+// LoadFeature loads one feature from the DB.
 func (s *Storage) LoadFeature(id uint32) (*insideout.Feature, error) {
 	fs := &insideout.FeatureStorage{}
 	err := s.View(func(tx *bbolt.Tx) error {
@@ -81,6 +79,7 @@ func (s *Storage) LoadFeature(id uint32) (*insideout.Feature, error) {
 		}
 
 		dec := cbor.NewDecoder(bytes.NewReader(v))
+
 		return dec.Decode(fs)
 	})
 	if err != nil {
@@ -104,7 +103,7 @@ func (s *Storage) LoadFeature(id uint32) (*insideout.Feature, error) {
 }
 
 // LoadAllFeatures loads FeatureStorage from DB into idx
-// only useful to fill in memory shapeindex
+// only useful to fill in memory shapeindex.
 func (s *Storage) LoadAllFeatures(add func(*insideout.FeatureStorage, uint32) error) error {
 	err := s.View(func(tx *bbolt.Tx) error {
 		c := tx.Bucket([]byte{insideout.FeaturePrefix()}).Cursor()
@@ -113,25 +112,32 @@ func (s *Storage) LoadAllFeatures(add func(*insideout.FeatureStorage, uint32) er
 			id := binary.BigEndian.Uint32(key[1:])
 
 			dec := cbor.NewDecoder(bytes.NewReader(value))
-			fs := featureStoragePool.Get().(*insideout.FeatureStorage)
+			fs, ok := featureStoragePool.Get().(*insideout.FeatureStorage)
+			if !ok {
+				return errors.New("invalid data from db")
+			}
 			if err := dec.Decode(fs); err != nil {
 				featureStoragePool.Put(fs)
+
 				return err
 			}
 
 			if err := add(fs, id); err != nil {
 				featureStoragePool.Put(fs)
+
 				return err
 			}
 			featureStoragePool.Put(fs)
 		}
+
 		return nil
 	})
+
 	return err
 }
 
 // LoadFeaturesCells loads CellsStorage from DB into idx
-// only useful to fill in memory tree indexes
+// only useful to fill in memory tree indexes.
 func (s *Storage) LoadFeaturesCells(add func([]s2.CellUnion, []s2.CellUnion, uint32)) error {
 	err := s.View(func(tx *bbolt.Tx) error {
 		c := tx.Bucket([]byte{insideout.CellPrefix()}).Cursor()
@@ -148,12 +154,14 @@ func (s *Storage) LoadFeaturesCells(add func([]s2.CellUnion, []s2.CellUnion, uin
 
 			add(cs.CellsIn, cs.CellsOut, id)
 		}
+
 		return nil
 	})
+
 	return err
 }
 
-// LoadMapInfos loads map infos from the DB if any
+// LoadMapInfos loads map infos from the DB if any.
 func (s *Storage) LoadMapInfos() (*insideout.MapInfos, bool, error) {
 	var mapInfos *insideout.MapInfos
 	err := s.View(func(tx *bbolt.Tx) error {
@@ -183,7 +191,7 @@ func (s *Storage) LoadMapInfos() (*insideout.MapInfos, bool, error) {
 	return mapInfos, true, nil
 }
 
-// LoadIndexInfos loads index infos from the DB
+// LoadIndexInfos loads index infos from the DB.
 func (s *Storage) LoadIndexInfos() (*insideout.IndexInfos, error) {
 	infos := &insideout.IndexInfos{}
 
@@ -203,7 +211,7 @@ func (s *Storage) LoadIndexInfos() (*insideout.IndexInfos, error) {
 	return infos, err
 }
 
-// LoadCellStorage loads cell storage from
+// LoadCellStorage loads cell storage from.
 func (s *Storage) LoadCellStorage(id uint32) (*insideout.CellsStorage, error) {
 	// get the s2 cells from the index
 	cs := &insideout.CellsStorage{}
@@ -381,6 +389,7 @@ func (s *Storage) Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer
 						"msg", fmt.Sprintf("outisde cover too big %d not indexing polygon #%d %s", len(cui), fi, f.Properties),
 						"feature_properties", f.Properties,
 					)
+
 					continue
 				}
 				for _, c := range cu {
