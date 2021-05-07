@@ -19,6 +19,6 @@ steps:
       - make grpc_health_probe indexer-countries
 
   - name: build
-    image: docker
+    image: plugins/docker
     settings:
       context: cmd/insided
