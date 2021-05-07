@@ -268,7 +268,7 @@ func (s *Storage) StabDB(lat, lng float64, stopOnInsideFound bool) (insideout.In
 		return nil
 	})
 	if err != nil {
-		return idxResp, fmt.Errorf("while iterating over keys: %w", err)
+		return idxResp, fmt.Errorf("while iterating over inside keys: %w, db: %v", err, s.DB.Stats())
 	}
 
 	if len(idxResp.IDsInside) > 0 && stopOnInsideFound {
@@ -305,7 +305,7 @@ func (s *Storage) StabDB(lat, lng float64, stopOnInsideFound bool) (insideout.In
 		return nil
 	})
 	if err != nil {
-		return idxResp, err
+		return idxResp, fmt.Errorf("while iterating over outside keys: %w db: %s", err, s.DB.Path())
 	}
 
 	// dedup
@@ -438,8 +438,7 @@ func (s *Storage) Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer
 		}
 
 		level.Debug(s.logger).Log(
-			"msg", "stored feature",
-			"feature_properties", f.Properties,
+			"msg", "Stored feature",
 		)
 
 		count++
@@ -490,7 +489,6 @@ func (s *Storage) writeFeature(f *geojson.Feature, id uint32, cui, cuo []s2.Cell
 
 		level.Debug(s.logger).Log(
 			"msg", "stored FeatureStorage",
-			"feature_properties", f.Properties,
 			"loop_count", len(fs.LoopsBytes),
 			"inside_loop_id", id,
 		)

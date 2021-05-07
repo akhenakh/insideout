@@ -53,21 +53,23 @@ func TestShapeIndex_Stab(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got, err := shapeidx.Stab(tt.lat, tt.lng)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Stab() error = %v, wantErr %v", err, tt.wantErr)
+	// This Run will not return until the parallel tests finish.
+	t.Run("group", func(t *testing.T) {
+		for _, tt := range tests {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 
-				return
-			}
-			if !cmp.Equal(got, tt.want) {
-				t.Errorf("Stab() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
+				got, err := shapeidx.Stab(tt.lat, tt.lng)
+				if (err != nil) != tt.wantErr {
+					t.Fatalf("Stab() error = %v, wantErr %v", err, tt.wantErr)
+				}
+				if !cmp.Equal(got, tt.want) {
+					t.Fatalf("Stab() got = %v, want %v", got, tt.want)
+				}
+			})
+		}
+	})
 }
 
 func setup(t *testing.T) (*shapeindex.Index, func()) {

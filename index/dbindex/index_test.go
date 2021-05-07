@@ -18,8 +18,9 @@ import (
 )
 
 func TestDBIndex_Stab(t *testing.T) {
-	dbidx, clean := setup(t)
-	defer clean()
+	dbidx, _ := setup(t)
+
+	t.Parallel()
 
 	tests := []struct {
 		name     string
@@ -74,22 +75,23 @@ func TestDBIndex_Stab(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got, err := dbidx.Stab(tt.lat, tt.lng)
+	// This Run will not return until the parallel tests finish.
+	t.Run("group", func(t *testing.T) {
+		for _, tt := range tests {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Stab() error = %v, wantErr %v", err, tt.wantErr)
-
-				return
-			}
-			if !cmp.Equal(got, tt.want) {
-				t.Errorf("Stab() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
+				got, err := dbidx.Stab(tt.lat, tt.lng)
+				if (err != nil) != tt.wantErr {
+					t.Fatalf("Stab() error = %v, wantErr %v", err, tt.wantErr)
+				}
+				if !cmp.Equal(got, tt.want) {
+					t.Fatalf("Stab() got = %v, want %v", got, tt.want)
+				}
+			})
+		}
+	})
 }
 
 func setup(t *testing.T) (*dbindex.Index, func()) {
@@ -101,6 +103,8 @@ func setup(t *testing.T) (*dbindex.Index, func()) {
 	require.NoError(t, err)
 	wstorage, wclose, err := bbolt.NewStorage(tmpFile.Name(), logger)
 	require.NoError(t, err)
+
+	t.Log("db path", tmpFile.Name())
 
 	var fc geojson.FeatureCollection
 
@@ -131,12 +135,13 @@ func setup(t *testing.T) (*dbindex.Index, func()) {
 	require.NoError(t, err)
 
 	// RO storage
-	storage, bclose, err := bbolt.NewStorage(tmpFile.Name(), logger)
+	storage, bclose, err := bbolt.NewROStorage(tmpFile.Name(), logger)
 	require.NoError(t, err)
 
 	dbidx := dbindex.New(storage, dbindex.Options{StopOnInsideFound: true})
 
 	return dbidx, func() {
+		t.Log("clean called")
 		bclose()
 		os.Remove(tmpFile.Name())
 	}
