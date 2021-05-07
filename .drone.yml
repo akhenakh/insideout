@@ -3,12 +3,17 @@ name: default
 type: kubernetes
 
 steps:
+  - name: vendor
+    image: golang
+    commands:
+      - go mod vendor
+
   - name: test
     image: golang
     commands:
-      - go test ./...
+      - make testnolint
   
-  - name: prepage
+  - name: prepare
     image: golang
     commands:
       - make grpc_health_probe indexer-countries

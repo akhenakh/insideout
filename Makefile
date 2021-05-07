@@ -6,8 +6,14 @@ endif
 
 DATE := $(shell date -u +%Y%m%d.%H%M%S)
 
-LDFLAGS = -trimpath -ldflags "-X=main.version=$(VERSION)-$(DATE)"
+BUILD_FLAGS = -trimpath -ldflags="-X main.version=$(VERSION)-$(DATE)"
+
 CGO_ENABLED=0
+
+ifneq (,$(wildcard ./vendor))
+$(warning Found vendor directory setting go build flag to -mod vendor)
+	BUILD_FLAGS += -mod vendor
+endif
 
 targets = insided indexer insidecli loadtester
 
@@ -25,16 +31,16 @@ lint:
 	golangci-lint run
 
 insided:
-	cd cmd/insided && go build $(LDFLAGS)
+	cd cmd/insided && go build $(BUILD_FLAGS)
 
 insidecli:
-	cd cmd/insidecli && go build $(LDFLAGS)
+	cd cmd/insidecli && go build $(BUILD_FLAGS)
 
 indexer:
-	cd cmd/indexer && go build $(LDFLAGS)
+	cd cmd/indexer && go build $(BUILD_FLAGS)
 
 loadtester:
-	cd cmd/loadtester && go build $(LDFLAGS)
+	cd cmd/loadtester && go build $(BUILD_FLAGS)
 
 cmd/insided/grpc_health_probe: GRPC_HEALTH_PROBE_VERSION=v0.4.1
 cmd/insided/grpc_health_probe:
