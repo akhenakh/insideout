@@ -25,7 +25,7 @@ test: lint testnolint
 
 CGO_ENABLED=1
 testnolint:
-	go test -race ./...
+	go test $(BUILD_FLAGS) -race ./...
 
 lint:
 	golangci-lint run

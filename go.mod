@@ -31,5 +31,5 @@ require (
 	golang.org/x/sys v0.0.0-20210507014357-30e306a8bba5 // indirect
 	google.golang.org/genproto v0.0.0-20210506142907-4a47615972c2 // indirect
 	google.golang.org/grpc v1.37.0
-	google.golang.org/protobuf v1.26.0
+	google.golang.org/protobuf v1.26.0 // indirect
 )
