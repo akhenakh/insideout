@@ -31,6 +31,12 @@ type Storage struct {
 	minCoverLevel int
 }
 
+var ErrStorage = errors.New("storage error")
+
+func OperationStorageError(op string) error {
+	return fmt.Errorf("OperationStorageError %w : %s", ErrStorage, op)
+}
+
 // NewStorage returns a cold storage using bboltdb.
 func NewStorage(path string, logger log.Logger) (*Storage, func() error, error) {
 	// Creating DB
@@ -62,6 +68,7 @@ func NewROStorage(path string, logger log.Logger) (*Storage, func() error, error
 	if err != nil {
 		return nil, nil, err
 	}
+
 	s.minCoverLevel = infos.MinCoverLevel
 
 	return s, db.Close, nil
@@ -70,12 +77,13 @@ func NewROStorage(path string, logger log.Logger) (*Storage, func() error, error
 // LoadFeature loads one feature from the DB.
 func (s *Storage) LoadFeature(id uint32) (*insideout.Feature, error) {
 	fs := &insideout.FeatureStorage{}
+
 	err := s.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte{insideout.FeaturePrefix()})
 		k := insideout.FeatureKey(id)
 		v := b.Get(k)
 		if v == nil {
-			return fmt.Errorf("feature id not found: %d", id)
+			return OperationStorageError(fmt.Sprintf("feature id not found: %d", id))
 		}
 
 		dec := cbor.NewDecoder(bytes.NewReader(v))
@@ -92,8 +100,10 @@ func (s *Storage) LoadFeature(id uint32) (*insideout.Feature, error) {
 		if err = l.Decode(bytes.NewReader(fs.LoopsBytes[i])); err != nil {
 			return nil, err
 		}
+
 		loops[i] = l
 	}
+
 	f := &insideout.Feature{
 		Loops:      loops,
 		Properties: fs.Properties,
@@ -114,7 +124,7 @@ func (s *Storage) LoadAllFeatures(add func(*insideout.FeatureStorage, uint32) er
 			dec := cbor.NewDecoder(bytes.NewReader(value))
 			fs, ok := featureStoragePool.Get().(*insideout.FeatureStorage)
 			if !ok {
-				return errors.New("invalid data from db")
+				return OperationStorageError("invalid data from db")
 			}
 			if err := dec.Decode(fs); err != nil {
 				featureStoragePool.Put(fs)
@@ -164,6 +174,7 @@ func (s *Storage) LoadFeaturesCells(add func([]s2.CellUnion, []s2.CellUnion, uin
 // LoadMapInfos loads map infos from the DB if any.
 func (s *Storage) LoadMapInfos() (*insideout.MapInfos, bool, error) {
 	var mapInfos *insideout.MapInfos
+
 	err := s.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(insideout.MapKey())
 		if b == nil {
@@ -175,10 +186,8 @@ func (s *Storage) LoadMapInfos() (*insideout.MapInfos, bool, error) {
 		}
 		mapInfos = &insideout.MapInfos{}
 		dec := cbor.NewDecoder(bytes.NewReader(value))
-		if err := dec.Decode(mapInfos); err != nil {
-			return err
-		}
-		return nil
+
+		return dec.Decode(mapInfos)
 	})
 	if err != nil {
 		return nil, false, err
@@ -199,13 +208,11 @@ func (s *Storage) LoadIndexInfos() (*insideout.IndexInfos, error) {
 		b := tx.Bucket(insideout.InfoKey())
 		value := b.Get(insideout.InfoKey())
 		if value == nil {
-			return errors.New("can't find infos entries, invalid DB")
+			return OperationStorageError("can't find infos entries, invalid DB")
 		}
 		dec := cbor.NewDecoder(bytes.NewReader(value))
-		if err := dec.Decode(infos); err != nil {
-			return err
-		}
-		return nil
+
+		return dec.Decode(infos)
 	})
 
 	return infos, err
@@ -219,10 +226,8 @@ func (s *Storage) LoadCellStorage(id uint32) (*insideout.CellsStorage, error) {
 		b := tx.Bucket([]byte{insideout.CellPrefix()})
 		v := b.Get(insideout.CellKey(id))
 		dec := cbor.NewDecoder(bytes.NewReader(v))
-		if err := dec.Decode(cs); err != nil {
-			return err
-		}
-		return nil
+
+		return dec.Decode(cs)
 	})
 
 	return cs, err
@@ -236,8 +241,8 @@ func (s *Storage) StabDB(lat, lng float64, stopOnInsideFound bool) (insideout.In
 	c := s2.CellIDFromLatLng(ll)
 	cLookup := s2.CellFromPoint(p).ID().Parent(s.minCoverLevel)
 	mi := make(map[insideout.FeatureIndexResponse]struct{})
-
 	startKey, stopKey := insideout.InsideRangeKeys(cLookup)
+
 	err := s.View(func(tx *bbolt.Tx) error {
 		curs := tx.Bucket([]byte{insideout.CellPrefix()}).Cursor()
 
@@ -254,14 +259,16 @@ func (s *Storage) StabDB(lat, lng float64, stopOnInsideFound bool) (insideout.In
 				mi[res] = struct{}{}
 				if stopOnInsideFound {
 					idxResp.IDsInside = append(idxResp.IDsInside, res)
+
 					return nil
 				}
 			}
 		}
+
 		return nil
 	})
 	if err != nil {
-		return idxResp, err
+		return idxResp, fmt.Errorf("while iterating over keys: %w", err)
 	}
 
 	if len(idxResp.IDsInside) > 0 && stopOnInsideFound {
@@ -294,6 +301,7 @@ func (s *Storage) StabDB(lat, lng float64, stopOnInsideFound bool) (insideout.In
 				}
 			}
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -324,17 +332,20 @@ func (s *Storage) Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer
 		if _, err := tx.CreateBucket([]byte{insideout.CellPrefix()}); err != nil {
 			return err
 		}
+
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("can't create bucket into DB: %w", err)
 	}
+
 	for _, f := range fc.Features {
 		f := f
 		// cover inside
 		cui, err := insideout.GeoJSONCoverCellUnion(f, icoverer, true)
 		if err != nil {
 			level.Warn(logger).Log("msg", "error covering inside", "error", err, "feature_properties", f.Properties)
+
 			continue
 		}
 
@@ -342,6 +353,7 @@ func (s *Storage) Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer
 		cuo, err := insideout.GeoJSONCoverCellUnion(f, ocoverer, false)
 		if err != nil {
 			level.Warn(logger).Log("msg", "error covering outside", "error", err, "feature_properties", f.Properties)
+
 			continue
 		}
 
@@ -366,7 +378,7 @@ func (s *Storage) Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer
 					ev := b.Get(insideout.InsideKey(c))
 
 					if ev != nil {
-						v = append(v, ev...)
+						v = append(v, ev...) //nolint: makezero
 					}
 
 					err = b.Put(insideout.InsideKey(c), v)
@@ -375,6 +387,7 @@ func (s *Storage) Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer
 					}
 				}
 			}
+
 			return nil
 		})
 		if err != nil {
@@ -403,7 +416,7 @@ func (s *Storage) Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer
 					b := tx.Bucket([]byte{insideout.CellPrefix()})
 					ev := b.Get(insideout.OutsideKey(c))
 					if ev != nil {
-						v = append(v, ev...)
+						v = append(v, ev...) //nolint: makezero
 					}
 
 					err = b.Put(insideout.OutsideKey(c), v)
@@ -412,6 +425,7 @@ func (s *Storage) Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer
 					}
 				}
 			}
+
 			return nil
 		})
 		if err != nil {
@@ -423,7 +437,10 @@ func (s *Storage) Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer
 			return fmt.Errorf("can't store featrure into DB: %w", err)
 		}
 
-		// log.Println(f.Properties, len(cui), len(cuo))
+		level.Debug(s.logger).Log(
+			"msg", "stored feature",
+			"feature_properties", f.Properties,
+		)
 
 		count++
 	}
@@ -477,6 +494,7 @@ func (s *Storage) writeFeature(f *geojson.Feature, id uint32, cui, cuo []s2.Cell
 			"loop_count", len(fs.LoopsBytes),
 			"inside_loop_id", id,
 		)
+
 		return nil
 	})
 	if err != nil {
@@ -508,12 +526,11 @@ func (s *Storage) writeInfos(icoverer *s2.RegionCoverer, ocoverer *s2.RegionCove
 	if err := enc.Encode(infos); err != nil {
 		return fmt.Errorf("failed encoding IndexInfos: %w", err)
 	}
+
 	err := s.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(insideout.InfoKey())
-		if err := b.Put(insideout.InfoKey(), infoBytes.Bytes()); err != nil {
-			return err
-		}
-		return nil
+
+		return b.Put(insideout.InfoKey(), infoBytes.Bytes())
 	})
 	if err != nil {
 		return fmt.Errorf("failed encoding IndexInfos: %w", err)

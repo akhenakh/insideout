@@ -79,6 +79,7 @@ func TestDBIndex_Stab(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := dbidx.Stab(tt.lat, tt.lng)
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Stab() error = %v, wantErr %v", err, tt.wantErr)
 

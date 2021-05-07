@@ -107,7 +107,10 @@ func main() {
 	storage, clean, err := bbolt.NewROStorage(*dbPath, logger)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
-		os.Exit(2)
+
+		exitcode = 1
+
+		return
 	}
 
 	defer clean()
@@ -115,7 +118,10 @@ func main() {
 	infos, err := storage.LoadIndexInfos()
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to read infos", "error", err)
-		os.Exit(2)
+
+		exitcode = 1
+
+		return
 	}
 
 	// gRPC Health Server
@@ -146,7 +152,10 @@ func main() {
 		})
 	if err != nil {
 		level.Error(logger).Log("msg", "can't get a working server", "error", err)
-		os.Exit(2)
+
+		exitcode = 1
+
+		return
 	}
 
 	// web server metrics

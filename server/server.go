@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/dgraph-io/ristretto"
 	log "github.com/go-kit/kit/log"
@@ -70,19 +69,25 @@ func New(storage insideout.Store, logger log.Logger, healthServer *health.Server
 	switch opts.Strategy {
 	case insideout.InsideTreeStrategy:
 		treeidx := treeindex.New(treeindex.Options{StopOnInsideFound: opts.StopOnFirstFound})
+
 		err := storage.LoadFeaturesCells(treeidx.Add)
 		if err != nil {
 			level.Error(logger).Log("msg", "failed to load cells from storage", "error", err, "strategy", opts.Strategy)
-			os.Exit(2)
+
+			return nil, fmt.Errorf("ailed to load cells from storage: %w", err)
 		}
+
 		idx = treeidx
 	case insideout.ShapeIndexStrategy:
 		shapeidx := shapeindex.New()
+
 		err := storage.LoadAllFeatures(shapeidx.Add)
 		if err != nil {
 			level.Error(logger).Log("msg", "failed to load feature from storage", "error", err, "strategy", opts.Strategy)
-			os.Exit(2)
+
+			return nil, fmt.Errorf("failed to load feature from storage: %w", err)
 		}
+
 		idx = shapeidx
 	case insideout.DBStrategy:
 		dbidx := dbindex.New(storage, dbindex.Options{StopOnInsideFound: opts.StopOnFirstFound})
@@ -104,15 +109,16 @@ func New(storage insideout.Store, logger log.Logger, healthServer *health.Server
 			BufferItems: 64,                          // number of keys per Get buffer.
 		})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cache error: %w", err)
 		}
+
 		s.cache = cache
 	}
 
 	return s, nil
 }
 
-// feature fetch feature from cache or
+// feature fetch feature from cache or from storage.
 func (s *Server) feature(id uint32) (*insideout.Feature, error) {
 	if s.cache == nil {
 		return s.storage.LoadFeature(id)
@@ -132,10 +138,11 @@ func (s *Server) feature(id uint32) (*insideout.Feature, error) {
 	}
 
 	featureHitCounter.Inc()
+
 	return fi.(*insideout.Feature), nil
 }
 
-// Within query exposed via gRPC
+// Within query exposed via gRPC.
 func (s *Server) Within(
 	ctx context.Context, req *insidesvc.WithinRequest,
 ) (resp *insidesvc.WithinResponse, terr error) {
@@ -167,6 +174,7 @@ func (s *Server) Within(
 		if err != nil {
 			return nil, err
 		}
+
 		level.Debug(s.logger).Log("msg", "Found inside feature",
 			"fid", fid.ID,
 			"properties", f.Properties,
@@ -185,8 +193,9 @@ func (s *Server) Within(
 		// TODO: filter properties
 		prop, err := insideout.PropertiesToValues(f)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("can't transfor property to value: %w", err)
 		}
+
 		feature.Properties = prop
 		feature.Properties[insidesvc.LoopIndexProperty] = &structpb.Value{
 			Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.Pos)},
@@ -203,6 +212,7 @@ func (s *Server) Within(
 	}
 
 	p := s2.PointFromLatLng(s2.LatLngFromDegrees(req.Lat, req.Lng))
+
 	for _, fid := range idxResp.IDsMayBeInside {
 		f, err := s.feature(fid.ID)
 		if err != nil {
@@ -218,6 +228,7 @@ func (s *Server) Within(
 		if !l.ContainsPoint(p) {
 			continue
 		}
+
 		level.Debug(s.logger).Log("msg", "Found maybe inside feature PIP valid",
 			"fid", fid.ID,
 			"properties", f.Properties,
@@ -237,6 +248,7 @@ func (s *Server) Within(
 		if err != nil {
 			return nil, err
 		}
+
 		feature.Properties = prop
 		feature.Properties[insidesvc.LoopIndexProperty] = &structpb.Value{
 			Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.Pos)},
@@ -317,9 +329,10 @@ func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (feature *i
 	return feature, nil
 }
 
-// Stab returns features containing lat lng
+// Stab returns features containing lat lng.
 func (s *Server) IndexStab(lat, lng float64) ([]*insideout.Feature, error) {
 	var res []*insideout.Feature
+
 	idxResp, err := s.idx.Stab(lat, lng)
 	if err != nil {
 		return nil, fmt.Errorf("stabbing error: %w", err)
@@ -330,10 +343,12 @@ func (s *Server) IndexStab(lat, lng float64) ([]*insideout.Feature, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		level.Debug(s.logger).Log("msg", "Found inside feature",
 			"fid", fid.ID,
 			"properties", f.Properties,
 			"loop #", fid.Pos)
+
 		res = append(res, f)
 	}
 
@@ -342,15 +357,18 @@ func (s *Server) IndexStab(lat, lng float64) ([]*insideout.Feature, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		l := f.Loops[fid.Pos]
 		if l.ContainsPoint(s2.PointFromLatLng(s2.LatLngFromDegrees(lat, lng))) {
 			level.Debug(s.logger).Log("msg", "Found outside + PIP feature",
 				"fid", fid.ID,
 				"properties", f.Properties,
 				"loop #", fid.Pos)
+
 			res = append(res, f)
 		}
 	}
+
 	return res, nil
 }
 
@@ -359,8 +377,10 @@ func (s *Server) handleError(terr error, span opentracing.Span) {
 		// do not log not found as error
 		if status, ok := status.FromError(terr); ok && status.Code() == codes.NotFound {
 			level.Debug(s.logger).Log("error", terr)
+
 			return
 		}
+
 		errorCounter.Inc()
 		span.LogFields(
 			slog.String("error", terr.Error()),

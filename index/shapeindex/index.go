@@ -10,7 +10,7 @@ import (
 	"github.com/akhenakh/insideout"
 )
 
-// Index using s2.ShapeIndexStrategy
+// Index using s2.ShapeIndexStrategy.
 type Index struct {
 	sync.Mutex
 	*s2.ShapeIndex
@@ -31,6 +31,7 @@ func New() *Index {
 func (idx *Index) Add(si *insideout.FeatureStorage, id uint32) error {
 	idx.Lock()
 	defer idx.Unlock()
+
 	for i := 0; i < len(si.LoopsBytes); i++ {
 		l := &s2.Loop{}
 		if err := l.Decode(bytes.NewReader(si.LoopsBytes[i])); err != nil {
@@ -47,14 +48,16 @@ func (idx *Index) Add(si *insideout.FeatureStorage, id uint32) error {
 
 		idx.ShapeIndex.Add(il)
 	}
+
 	return nil
 }
 
 // Stab returns polygon's ids we are inside and polygon's ids we may be inside
-// in case of this index we are always in
+// in case of this index we are always in.
 func (idx *Index) Stab(lat, lng float64) (insideout.IndexResponse, error) {
 	idx.Lock()
 	defer idx.Unlock()
+
 	p := s2.PointFromLatLng(s2.LatLngFromDegrees(lat, lng))
 
 	var idxResp insideout.IndexResponse

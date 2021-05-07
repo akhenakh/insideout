@@ -7,7 +7,7 @@ import (
 	"github.com/akhenakh/insideout"
 )
 
-// Index using insidetree
+// Index using insidetree.
 type Index struct {
 	itree *insidetree.Tree
 	otree *insidetree.Tree
@@ -15,7 +15,7 @@ type Index struct {
 	opts Options
 }
 
-// Options for the insidetree Index
+// Options for the insidetree Index.
 type Options struct {
 	// StopOnInside, if you know your data does not overlap (eg countries) set it to true
 	// so it won't go looking further and response faster
@@ -39,6 +39,7 @@ func (idx *Index) Add(cellsIn []s2.CellUnion, cellsOut []s2.CellUnion, id uint32
 			})
 		}
 	}
+
 	for i, cu := range cellsOut {
 		for _, c := range cu {
 			idx.otree.Index(c, insideout.FeatureIndexResponse{
@@ -57,6 +58,7 @@ func (idx *Index) Stab(lat, lng float64) (insideout.IndexResponse, error) {
 
 	c := s2.CellFromPoint(p).ID()
 	res := idx.itree.Stab(c)
+
 	for _, r := range res {
 		fres := r.(insideout.FeatureIndexResponse)
 		idxResp.IDsInside = append(idxResp.IDsInside, fres)
@@ -73,16 +75,20 @@ func (idx *Index) Stab(lat, lng float64) (insideout.IndexResponse, error) {
 
 	for _, r := range res {
 		fres := r.(insideout.FeatureIndexResponse)
+
 		// remove any answer matching inside
 		found := false
+
 		for _, ires := range idxResp.IDsInside {
 			if ires.ID == fres.ID {
 				found = true
 			}
 		}
+
 		if !found {
 			idxResp.IDsMayBeInside = append(idxResp.IDsMayBeInside, fres)
 		}
 	}
+
 	return idxResp, nil
 }

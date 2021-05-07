@@ -22,6 +22,8 @@ func TestTreeIndex_Stab(t *testing.T) {
 	treeidx, clean := setup(t)
 	defer clean()
 
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		lat, lng float64

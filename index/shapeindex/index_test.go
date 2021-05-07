@@ -19,6 +19,8 @@ import (
 )
 
 func TestShapeIndex_Stab(t *testing.T) {
+	t.Parallel()
+
 	shapeidx, clean := setup(t)
 	defer clean()
 

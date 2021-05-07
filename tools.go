@@ -134,6 +134,7 @@ func LoopFromCoordinates(c []float64) *s2.Loop {
 	if len(c)%2 != 0 || len(c) < 2*3 {
 		return nil
 	}
+
 	points := make([]s2.Point, len(c)/2)
 
 	for i := 0; i < len(c); i += 2 {
@@ -160,6 +161,7 @@ func CoordinatesFromLoops(l *s2.Loop) []float64 {
 		coords[i*2] = ll.Lng.Degrees()
 		coords[i*2+1] = ll.Lat.Degrees()
 	}
+
 	coords[len(points)*2] = coords[0]
 	coords[len(points)*2+1] = coords[1]
 
@@ -179,6 +181,7 @@ func InsideRangeKeys(c s2.CellID) ([]byte, []byte) {
 	mink := make([]byte, 1+8)
 	mink[0] = insidePrefix
 	binary.BigEndian.PutUint64(mink[1:], uint64(c.RangeMin()))
+
 	maxk := make([]byte, 1+8)
 	maxk[0] = insidePrefix
 	binary.BigEndian.PutUint64(maxk[1:], uint64(c.RangeMax()))
@@ -199,6 +202,7 @@ func OutsideRangeKeys(c s2.CellID) ([]byte, []byte) {
 	mink := make([]byte, 1+8)
 	mink[0] = outsidePrefix
 	binary.BigEndian.PutUint64(mink[1:], uint64(c.RangeMin()))
+
 	maxk := make([]byte, 1+8)
 	maxk[0] = outsidePrefix
 	binary.BigEndian.PutUint64(maxk[1:], uint64(c.RangeMax()))

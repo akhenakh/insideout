@@ -4,7 +4,7 @@ import (
 	"github.com/akhenakh/insideout"
 )
 
-// Index using dbindex
+// Index using dbindex.
 type Index struct {
 	storage insideout.Store
 
@@ -25,7 +25,7 @@ func New(storage insideout.Store, opts Options) *Index {
 	}
 }
 
-// Stab returns polygon's ids containing lat lng and polygon's ids that may be
+// Stab returns polygon's ids containing lat lng and polygon's ids.
 func (idx *Index) Stab(lat, lng float64) (insideout.IndexResponse, error) {
 	return idx.storage.StabDB(lat, lng, idx.opts.StopOnInsideFound)
 }
