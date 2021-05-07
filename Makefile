@@ -36,7 +36,7 @@ indexer:
 loadtester:
 	cd cmd/loadtester && go build $(LDFLAGS)
 
-cmd/insided/grpc_health_probe: GRPC_HEALTH_PROBE_VERSION=v0.3.2
+cmd/insided/grpc_health_probe: GRPC_HEALTH_PROBE_VERSION=v0.4.1
 cmd/insided/grpc_health_probe:
 	wget -qOcmd/insided/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
 		chmod +x cmd/insided/grpc_health_probe
