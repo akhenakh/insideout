@@ -1,4 +1,4 @@
-package shapeindex
+package shapeindex_test
 
 import (
 	"encoding/json"
@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/akhenakh/insideout"
+	"github.com/akhenakh/insideout/index/shapeindex"
 	"github.com/akhenakh/insideout/storage/bbolt"
 )
 
@@ -67,7 +68,7 @@ func TestShapeIndex_Stab(t *testing.T) {
 	}
 }
 
-func setup(t *testing.T) (*Index, func()) {
+func setup(t *testing.T) (*shapeindex.Index, func()) {
 	t.Helper()
 
 	logger := log.NewNopLogger()
@@ -81,6 +82,7 @@ func setup(t *testing.T) (*Index, func()) {
 
 	file, err := os.Open("../testdata/poly.geojson")
 	require.NoError(t, err)
+
 	defer file.Close()
 
 	decoder := json.NewDecoder(file)
@@ -108,7 +110,7 @@ func setup(t *testing.T) (*Index, func()) {
 	storage, bclose, err := bbolt.NewStorage(tmpFile.Name(), logger)
 	require.NoError(t, err)
 
-	shapeidx := New()
+	shapeidx := shapeindex.New()
 	err = storage.LoadAllFeatures(shapeidx.Add)
 	require.NoError(t, err)
 

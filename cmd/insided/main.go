@@ -66,6 +66,9 @@ var (
 func main() {
 	flag.Parse()
 
+	exitcode := 0
+	defer func() { os.Exit(exitcode) }()
+
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stdout))
 	logger = log.With(logger, "caller", log.Caller(5), "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "app", appName)
@@ -77,7 +80,10 @@ func main() {
 	case insideout.InsideTreeStrategy, insideout.DBStrategy, insideout.ShapeIndexStrategy:
 	default:
 		level.Error(logger).Log("msg", "unknown strategy", "strategy", *strategy)
-		os.Exit(2)
+
+		exitcode = 1
+
+		return
 	}
 
 	level.Info(logger).Log("msg", "Starting app", "version", version)
@@ -88,6 +94,7 @@ func main() {
 	// catch termination
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)
+
 	defer signal.Stop(interrupt)
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -102,6 +109,7 @@ func main() {
 		level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
 		os.Exit(2)
 	}
+
 	defer clean()
 
 	infos, err := storage.LoadIndexInfos()
@@ -112,6 +120,7 @@ func main() {
 
 	// gRPC Health Server
 	healthServer := health.NewServer()
+
 	g.Go(func() error {
 		grpcHealthServer = grpc.NewServer()
 
@@ -124,6 +133,7 @@ func main() {
 			os.Exit(2)
 		}
 		level.Info(logger).Log("msg", fmt.Sprintf("gRPC health server listening at %s", haddr))
+
 		return grpcHealthServer.Serve(hln)
 	})
 
@@ -226,6 +236,7 @@ func main() {
 				json := []byte(fmt.Sprintf("{\"status\": \"%s\"}", healthpb.HealthCheckResponse_UNKNOWN.String()))
 				w.WriteHeader(http.StatusInternalServerError)
 				w.Write(json)
+
 				return
 			}
 			if resp.Status != healthpb.HealthCheckResponse_SERVING {
@@ -299,10 +310,14 @@ func main() {
 	err = g.Wait()
 	if err != nil {
 		level.Error(logger).Log("msg", "server returning an error", "error", err)
-		os.Exit(2)
+
+		exitcode = 1
+
+		return
 	}
 
 	var m runtime.MemStats
+
 	runtime.ReadMemStats(&m)
 
 	fmt.Printf("Alloc = %v MiB", bToMb(m.Alloc))

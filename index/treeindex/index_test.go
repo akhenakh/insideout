@@ -1,4 +1,4 @@
-package treeindex
+package treeindex_test
 
 import (
 	"encoding/json"
@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/akhenakh/insideout"
+	"github.com/akhenakh/insideout/index/treeindex"
 	"github.com/akhenakh/insideout/storage/bbolt"
 )
 
@@ -27,21 +28,23 @@ func TestTreeIndex_Stab(t *testing.T) {
 		want     insideout.IndexResponse
 		wantErr  bool
 	}{
-		{"inside loop not within inside index",
+		{
+			"inside loop not within inside index",
 			47.39444367083928, -2.992874768945723,
 			insideout.IndexResponse{
 				IDsInside: nil,
-				IDsMayBeInside: []insideout.FeatureIndexResponse{insideout.FeatureIndexResponse{
+				IDsMayBeInside: []insideout.FeatureIndexResponse{{
 					ID:  0,
 					Pos: 1,
 				}},
 			},
 			false,
 		},
-		{"inside loop within inside index",
+		{
+			"inside loop within inside index",
 			47.39650628189986, -2.9876390969486524,
 			insideout.IndexResponse{
-				IDsInside: []insideout.FeatureIndexResponse{insideout.FeatureIndexResponse{
+				IDsInside: []insideout.FeatureIndexResponse{{
 					ID:  0,
 					Pos: 1,
 				}},
@@ -49,18 +52,20 @@ func TestTreeIndex_Stab(t *testing.T) {
 			},
 			false,
 		},
-		{"outside loop within outside index",
+		{
+			"outside loop within outside index",
 			47.38297924900667, -2.961873380366456,
 			insideout.IndexResponse{
 				IDsInside: nil,
-				IDsMayBeInside: []insideout.FeatureIndexResponse{insideout.FeatureIndexResponse{
+				IDsMayBeInside: []insideout.FeatureIndexResponse{{
 					ID:  0,
 					Pos: 1,
 				}},
 			},
 			false,
 		},
-		{"outside loop outside outside index",
+		{
+			"outside loop outside outside index",
 			47.37616957736262, -3.004367209321472,
 			insideout.IndexResponse{
 				IDsInside:      nil,
@@ -73,9 +78,11 @@ func TestTreeIndex_Stab(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := treeidx.Stab(tt.lat, tt.lng)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Stab() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			if !cmp.Equal(got, tt.want) {
@@ -85,7 +92,9 @@ func TestTreeIndex_Stab(t *testing.T) {
 	}
 }
 
-func setup(t *testing.T) (*Index, func()) {
+func setup(t *testing.T) (*treeindex.Index, func()) {
+	t.Helper()
+
 	logger := log.NewLogfmtLogger(os.Stdout)
 
 	tmpFile, err := ioutil.TempFile(os.TempDir(), "insideout-test-")
@@ -97,6 +106,7 @@ func setup(t *testing.T) (*Index, func()) {
 
 	file, err := os.Open("../testdata/poly.geojson")
 	require.NoError(t, err)
+
 	defer file.Close()
 
 	decoder := json.NewDecoder(file)
@@ -121,15 +131,15 @@ func setup(t *testing.T) (*Index, func()) {
 	require.NoError(t, err)
 
 	// RO storage
-	storage, close, err := bbolt.NewStorage(tmpFile.Name(), logger)
+	storage, bclose, err := bbolt.NewStorage(tmpFile.Name(), logger)
 	require.NoError(t, err)
 
-	treeidx := New(Options{StopOnInsideFound: true})
+	treeidx := treeindex.New(treeindex.Options{StopOnInsideFound: true})
 	err = storage.LoadFeaturesCells(treeidx.Add)
 	require.NoError(t, err)
 
 	return treeidx, func() {
-		close()
+		bclose()
 		os.Remove(tmpFile.Name())
 	}
 }

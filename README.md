@@ -14,7 +14,7 @@ This is the opensourced part of a project including ready to serve docker images
 Several strategies are available:
 
 - On disk index (more reads) data can be larger than memory
-- Inside Tree in memory (fast when a location is inside inside cover), data can be larger than memory only indexes are in memory
+- Inside Tree in memory (fast when a location is inside cover), data can be larger than memory only indexes are in memory
 - full s2 index, fastest but huge memory consumption, wait for start since indexation is made on start
 
 These 3 strategies give you enough choices to perform better according to your data.
@@ -36,7 +36,7 @@ Two sets of API are provided:
 
 Metrics are provided via Prometheus at `http://host:httpMetricsPort/metrics`.
 
-A debug visual map is available at  `http://host:httpAPIPort/debug/`.
+A debug visual map is available at `http://host:httpAPIPort/debug/`.
 
 Health status is provided via gRPC `host:healthPort` or via basic HTTP `http://host:httpAPIPort/healthz`.
 
@@ -81,7 +81,7 @@ Usage of ./cmd/insided/insided:
   -httpMetricsPort=8088: http port
   -logLevel="INFO": DEBUG|INFO|WARN|ERROR
   -stopOnFirstFound=false: Stop in first feature found
-  -strategy="db": Strategy to use: insidetree|shapeindex|db|postgis
+  -strategy="db": Strategy to use: insidetree|shapeindex|db
 ```
 
 ## K/V Engines

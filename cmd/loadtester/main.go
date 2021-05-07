@@ -39,7 +39,7 @@ var (
 func main() {
 	flag.Parse()
 
-	const exitcode = 0
+	exitcode := 0
 	defer func() { os.Exit(exitcode) }()
 
 	// pprof
@@ -62,6 +62,8 @@ func main() {
 	)
 	if err != nil {
 		level.Error(logger).Log("msg", "error dialing", "error", err)
+
+		exitcode = 1
 
 		return
 	}

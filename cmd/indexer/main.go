@@ -71,7 +71,7 @@ var (
 func main() {
 	flag.Parse()
 
-	const exitcode = 0
+	exitcode := 0
 	defer func() { os.Exit(exitcode) }()
 
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stdout))
@@ -89,6 +89,8 @@ func main() {
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to open GeoJSON", "error", err, "file_path", *filePath)
 
+		exitcode = 1
+
 		return
 	}
 	defer file.Close()
@@ -99,6 +101,8 @@ func main() {
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to decode GeoJSON", "error", err, "file_path", *filePath)
 
+		exitcode = 1
+
 		return
 	}
 
@@ -106,8 +110,11 @@ func main() {
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to open storage", "error", err, "db_path", *dbPath)
 
+		exitcode = 1
+
 		return
 	}
+
 	defer clean()
 
 	icoverer := &s2.RegionCoverer{
@@ -125,7 +132,10 @@ func main() {
 	if err != nil {
 		level.Error(logger).Log("msg", "indexation failed", "error", err)
 
+		exitcode = 1
+
 		return
 	}
+
 	level.Info(logger).Log("msg", "stored index_infos")
 }

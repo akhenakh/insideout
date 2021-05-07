@@ -18,7 +18,7 @@ import (
 )
 
 func TestDBIndex_Stab(t *testing.T) {
-	treeidx, clean := setup(t)
+	dbidx, clean := setup(t)
 	defer clean()
 
 	tests := []struct {
@@ -77,7 +77,8 @@ func TestDBIndex_Stab(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := treeidx.Stab(tt.lat, tt.lng)
+			t.Parallel()
+			got, err := dbidx.Stab(tt.lat, tt.lng)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Stab() error = %v, wantErr %v", err, tt.wantErr)
 
