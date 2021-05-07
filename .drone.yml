@@ -7,8 +7,13 @@ steps:
     image: golang
     commands:
       - go test ./...
-
-  - name: build
+  
+  - name: prepage
     image: golang
     commands:
-      - make docker-image
+      - make grpc_health_probe indexer-countries
+
+  - name: build
+    image: docker
+    settings:
+      dockerfile: cmd/insided/Dockerfile
