@@ -4,9 +4,7 @@ ifndef VERSION
 VERSION := $(shell git describe --always --tags)
 endif
 
-DATE := $(shell date -u +%Y%m%d.%H%M%S)
-
-BUILD_FLAGS = -trimpath -ldflags="-X main.version=$(VERSION)-$(DATE)"
+BUILD_FLAGS = -trimpath -ldflags="-X main.version=$(VERSION)"
 
 CGO_ENABLED=0
 

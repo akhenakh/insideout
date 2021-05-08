@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
 
-	"github.com/akhenakh/insideout/insidesvc"
+	"github.com/akhenakh/insideout/gen/go/insidesvc/v1"
 	"github.com/akhenakh/insideout/loglevel"
 )
 
@@ -68,7 +68,7 @@ func main() {
 		return
 	}
 
-	c := insidesvc.NewInsideClient(conn)
+	c := insidesvc.NewInsideServiceClient(conn)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	if *testDuration > 0 {

@@ -25,3 +25,4 @@ inside.db/
 /cmd/loadtesterpg/loadtesterpg
 /cmd/indexer/indexer
 /cmd/indexer/inside.db
+vendor/

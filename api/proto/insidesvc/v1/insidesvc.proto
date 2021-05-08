@@ -1,12 +1,15 @@
 syntax = "proto3";
 
+package insidesvc.v1;
+
+option go_package = "github.com/akhenakh/insideout/gen/go/insidesvc/v1;insidesvc";
 import "google/protobuf/struct.proto";
 
-service Inside {
+service InsideService {
     //  Stab returns features containing lat lng
     rpc Within(WithinRequest) returns (WithinResponse) {}
     // Get returns a feature by its internal ID and polygon index
-    rpc Get(GetRequest) returns (Feature) {}
+    rpc Get(GetRequest) returns (GetResponse) {}
 }
 
 message WithinRequest {
@@ -32,6 +35,11 @@ message GetRequest {
     uint32 loop_index = 2;
 }
 
+message GetResponse {
+    uint32 id = 1;
+    Feature feature = 2;
+}
+
 message FeatureResponse {
     // id in the index
     uint32 id = 1;
@@ -53,10 +61,11 @@ message Geometry {
     repeated double coordinates = 3;
 
     enum Type {
-        POINT = 0;
-        POLYGON = 1;
-        MULTIPOLYGON = 2;
-        LINESTRING = 3;
+        TYPE_UNSPECIFIED = 0;
+        TYPE_POINT = 1;
+        TYPE_POLYGON = 2;
+        TYPE_MULTIPOLYGON = 3;
+        TYPE_LINESTRING = 4;
     }
 }
 

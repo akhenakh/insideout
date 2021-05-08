@@ -18,10 +18,10 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/akhenakh/insideout"
+	"github.com/akhenakh/insideout/gen/go/insidesvc/v1"
 	"github.com/akhenakh/insideout/index/dbindex"
 	"github.com/akhenakh/insideout/index/shapeindex"
 	"github.com/akhenakh/insideout/index/treeindex"
-	"github.com/akhenakh/insideout/insidesvc"
 )
 
 var (
@@ -185,7 +185,7 @@ func (s *Server) Within(
 		if !req.RemoveGeometries {
 			l := f.Loops[fid.Pos]
 			feature.Geometry = &insidesvc.Geometry{
-				Type:        insidesvc.Geometry_POLYGON,
+				Type:        insidesvc.Geometry_TYPE_POLYGON,
 				Coordinates: insideout.CoordinatesFromLoops(l),
 			}
 		}
@@ -238,7 +238,7 @@ func (s *Server) Within(
 
 		if !req.RemoveGeometries {
 			feature.Geometry = &insidesvc.Geometry{
-				Type:        insidesvc.Geometry_POLYGON,
+				Type:        insidesvc.Geometry_TYPE_POLYGON,
 				Coordinates: insideout.CoordinatesFromLoops(l),
 			}
 		}
@@ -280,7 +280,7 @@ func (s *Server) Within(
 	return resp, nil
 }
 
-func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (feature *insidesvc.Feature, terr error) {
+func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (resp *insidesvc.GetResponse, terr error) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "Get")
 	defer span.Finish()
 
@@ -311,9 +311,9 @@ func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (feature *i
 		return nil, err
 	}
 
-	feature = &insidesvc.Feature{
+	feature := &insidesvc.Feature{
 		Geometry: &insidesvc.Geometry{
-			Type:        insidesvc.Geometry_POLYGON,
+			Type:        insidesvc.Geometry_TYPE_POLYGON,
 			Coordinates: insideout.CoordinatesFromLoops(l),
 		},
 		Properties: prop,
@@ -325,8 +325,10 @@ func (s *Server) Get(ctx context.Context, req *insidesvc.GetRequest) (feature *i
 	feature.Properties[insidesvc.FeatureIDProperty] = &structpb.Value{
 		Kind: &structpb.Value_NumberValue{NumberValue: float64(req.Id)},
 	}
+	resp.Id = req.Id
+	resp.Feature = feature
 
-	return feature, nil
+	return resp, nil
 }
 
 // Stab returns features containing lat lng.

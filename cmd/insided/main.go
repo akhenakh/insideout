@@ -34,7 +34,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/akhenakh/insideout"
-	"github.com/akhenakh/insideout/insidesvc"
+	"github.com/akhenakh/insideout/gen/go/insidesvc/v1"
 	"github.com/akhenakh/insideout/loglevel"
 	"github.com/akhenakh/insideout/server"
 	"github.com/akhenakh/insideout/server/debug"
@@ -206,7 +206,7 @@ func main() {
 				grpc_prometheus.UnaryServerInterceptor,
 			)),
 		)
-		insidesvc.RegisterInsideServer(grpcServer, server)
+		insidesvc.RegisterInsideServiceServer(grpcServer, server)
 
 		return grpcServer.Serve(ln)
 	})

@@ -12,7 +12,7 @@ import (
 	"github.com/twpayne/go-geom/encoding/geojson"
 
 	"github.com/akhenakh/insideout"
-	"github.com/akhenakh/insideout/insidesvc"
+	"github.com/akhenakh/insideout/gen/go/insidesvc/v1"
 )
 
 // DebugGetHandler HTTP 1.1 Handler to debug a feature.
@@ -35,7 +35,7 @@ func (s *Server) DebugGetHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	f, err := s.Get(ctx, &insidesvc.GetRequest{
+	resp, err := s.Get(ctx, &insidesvc.GetRequest{
 		Id:        uint32(fid),
 		LoopIndex: uint32(lidx),
 	})
@@ -53,13 +53,13 @@ func (s *Server) DebugGetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f.Properties[insidesvc.CellsInProperty] = &structpb.Value{
+	resp.Feature.Properties[insidesvc.CellsInProperty] = &structpb.Value{
 		Kind: &structpb.Value_StringValue{
 			StringValue: insideout.CellUnionToToken(cs.CellsIn[lidx]),
 		},
 	}
 
-	f.Properties[insidesvc.CellsOutProperty] = &structpb.Value{
+	resp.Feature.Properties[insidesvc.CellsOutProperty] = &structpb.Value{
 		Kind: &structpb.Value_StringValue{
 			StringValue: insideout.CellUnionToToken(cs.CellsOut[lidx]),
 		},
@@ -68,7 +68,8 @@ func (s *Server) DebugGetHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	m := jsonpb.Marshaler{}
-	err = m.Marshal(w, f)
+
+	err = m.Marshal(w, resp.Feature)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 

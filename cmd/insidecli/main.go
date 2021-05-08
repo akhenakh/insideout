@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
 
-	"github.com/akhenakh/insideout/insidesvc"
+	"github.com/akhenakh/insideout/gen/go/insidesvc/v1"
 )
 
 var (
@@ -31,7 +31,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	c := insidesvc.NewInsideClient(conn)
+	c := insidesvc.NewInsideServiceClient(conn)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
