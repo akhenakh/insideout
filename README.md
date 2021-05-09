@@ -121,3 +121,9 @@ Alloc = 286 MiB TotalAlloc = 3954 MiB   Sys = 479 MiB   NumGC = 32
 Pogreb is faster but does not supports prefix range and consumes a bit more than bbolt.
 
 bbolt is more capable for this load.
+
+## Prefiltering
+
+```
+zcat France.geojson.gz| jq '.features[] | select(.properties.admin_level==10)' 
+```

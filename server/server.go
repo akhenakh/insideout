@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/dgraph-io/ristretto"
 	log "github.com/go-kit/kit/log"
@@ -243,7 +244,6 @@ func (s *Server) Within(
 			}
 		}
 
-		// TODO: filter properties
 		prop, err := insideout.PropertiesToValues(f)
 		if err != nil {
 			return nil, err
@@ -263,6 +263,12 @@ func (s *Server) Within(
 		}
 		fresps = append(fresps, fresp)
 	}
+
+	// sort features by "admin_level"
+	sort.SliceStable(fresps, func(i, j int) bool {
+		return fresps[i].Feature.Properties["admin_level"].GetNumberValue() <
+			fresps[j].Feature.Properties["admin_level"].GetNumberValue()
+	})
 
 	level.Debug(s.logger).Log("msg", "result stab",
 		"lat", req.Lat,
