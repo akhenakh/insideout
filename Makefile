@@ -4,10 +4,9 @@ ifndef VERSION
 VERSION := $(shell git describe --always --tags)
 endif
 
-BUILD_FLAGS = -trimpath -ldflags="-X main.version=$(VERSION)"
+BUILD_FLAGS = -trimpath -ldflags="-linkmode external -extldflags -static -X main.version=$(VERSION)"
 
 CGO_ENABLED=0
-CC=musl-gcc
 
 ifneq (,$(wildcard ./vendor))
 $(warning Found vendor directory setting go build flag to -mod vendor)

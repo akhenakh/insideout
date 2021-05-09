@@ -3,27 +3,17 @@ name: default
 type: kubernetes
 
 steps:
-  - name: vendor
+  - name: build
     image: golang:1.16-alpine
     commands:
       - go mod vendor
-
-  - name: test
-    image: golang:1.16-alpine
-    commands:
-      - apk add musl-dev make
-      - make testnolint
+      - apk add musl-gcc make
+      - CC=musl-gcc make testnolint grpc_health_probe insided indexer-countries
 
   - name: proto-lint
     image: bufbuild/buf:0.41.0
     commands:
       - buf lint
-
-  - name: build
-    image: golang:1.16-alpine
-    commands:
-      - apk add musl-dev make
-      - make grpc_health_probe insided indexer-countries
 
   - name: build-image
     image: plugins/docker
