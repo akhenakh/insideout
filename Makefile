@@ -7,6 +7,7 @@ endif
 BUILD_FLAGS = -trimpath -ldflags="-X main.version=$(VERSION)"
 
 CGO_ENABLED=0
+CC=musl-gcc
 
 ifneq (,$(wildcard ./vendor))
 $(warning Found vendor directory setting go build flag to -mod vendor)

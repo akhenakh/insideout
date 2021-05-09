@@ -11,6 +11,7 @@ steps:
   - name: test
     image: golang:1.16-alpine
     commands:
+      - apk add musl-dev make
       - make testnolint
 
   - name: proto-lint
