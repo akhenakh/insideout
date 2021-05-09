@@ -21,7 +21,7 @@ steps:
   - name: build
     image: golang:1.16-alpine
     commands:
-      - apk add musl-dev
+      - apk add musl-dev make
       - make grpc_health_probe insided indexer-countries
 
   - name: build-image
