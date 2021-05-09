@@ -22,3 +22,4 @@ steps:
     image: plugins/docker
     settings:
       context: cmd/insided
+      dockerfile: cmd/insided/Dockerfile
