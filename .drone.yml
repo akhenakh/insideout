@@ -21,5 +21,9 @@ steps:
   - name: build-image
     image: plugins/docker
     settings:
+      username: akhenakh
+      password:
+        from_secret: docker_password
+      repo: akhenakh/insideout-demo
       context: cmd/insided
       dockerfile: cmd/insided/Dockerfile
