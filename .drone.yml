@@ -4,18 +4,24 @@ type: kubernetes
 
 steps:
   - name: vendor
-    image: golang
+    image: golang:1.16-alpine
     commands:
       - go mod vendor
 
   - name: test
-    image: golang
+    image: golang:1.16-alpine
     commands:
       - make testnolint
-  
-  - name: build
-    image: golang
+
+  - name: proto-lint
+    image: bufbuild/buf:0.41.0
     commands:
+      - buf lint
+
+  - name: build
+    image: golang:1.16-alpine
+    commands:
+      - apk add musl-dev
       - make grpc_health_probe insided indexer-countries
 
   - name: build-image
