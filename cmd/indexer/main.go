@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"compress/gzip"
 	"encoding/json"
 	stdlog "log"
 	"os"
@@ -64,7 +66,7 @@ var (
 	outsideMaxCellsCover = flag.Int("outsideMaxCellsCover", 16, "Max s2 Cells count for outside cover")
 	warningCellsCover    = flag.Int("warningCellsCover", 1000, "warning limit cover count")
 
-	filePath = flag.String("filePath", "", "FeatureCollection GeoJSON file to index")
+	filePath = flag.String("filePath", "-", "FeatureCollection GeoJSON file to index, default to stdin \"-\"")
 	dbPath   = flag.String("dbPath", "inside.db", "Database path")
 )
 
@@ -84,20 +86,51 @@ func main() {
 
 	var fc geojson.FeatureCollection
 
-	// reading GeoJSON
-	file, err := os.Open(*filePath)
-	if err != nil {
-		level.Error(logger).Log("msg", "failed to open GeoJSON", "error", err, "file_path", *filePath)
+	// reading GeoJSON or gziped GeoJSON
+	r := bufio.NewReader(os.Stdin)
+
+	if *filePath != "-" {
+		file, err := os.Open(*filePath)
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to open GeoJSON", "error", err, "file_path", *filePath)
+
+			exitcode = 1
+
+			return
+		}
+		defer file.Close()
+
+		r = bufio.NewReader(file)
+	} else {
+		*filePath = "stdin"
+	}
+
+	// read 2 bytes
+	if testBytes, err := r.Peek(2); err != nil {
+		level.Error(logger).Log("msg", "failed to read gziped GeoJSON", "error", err, "file_path", *filePath)
 
 		exitcode = 1
 
 		return
+	} else {
+		// found gzip
+		if testBytes[0] == 31 && testBytes[1] == 139 {
+			gzipReader, err := gzip.NewReader(r)
+			if err != nil {
+				level.Error(logger).Log("msg", "failed to open gziped GeoJSON", "error", err, "file_path", *filePath)
+
+				exitcode = 1
+
+				return
+			}
+
+			r = bufio.NewReader(gzipReader)
+		}
 	}
-	defer file.Close()
 
-	decoder := json.NewDecoder(file)
+	decoder := json.NewDecoder(r)
 
-	err = decoder.Decode(&fc)
+	err := decoder.Decode(&fc)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to decode GeoJSON", "error", err, "file_path", *filePath)
 

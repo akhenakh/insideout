@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	// _ "net/http/pprof"
+	// _ "net/http/pprof" .
 
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
