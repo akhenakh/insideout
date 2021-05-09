@@ -13,12 +13,12 @@ steps:
     commands:
       - make testnolint
   
-  - name: prepare
+  - name: build
     image: golang
     commands:
-      - make grpc_health_probe indexer-countries
+      - make grpc_health_probe insided indexer-countries
 
-  - name: build
+  - name: build-image
     image: plugins/docker
     settings:
       context: cmd/insided
