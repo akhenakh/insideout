@@ -100,8 +100,8 @@ func main() {
 			ctx, rcancel := context.WithTimeout(ctx, 200*time.Millisecond)
 
 			t := time.Now()
-			lat := *latMin + rand.Float64()*(*latMax-*latMin)
-			lng := *lngMin + rand.Float64()*(*lngMax-*lngMin)
+			lat := *latMin + rand.Float64()*(*latMax-*latMin) // nolint: gosec
+			lng := *lngMin + rand.Float64()*(*lngMax-*lngMin) // nolint: gosec
 			req.Lat = lat
 			req.Lng = lng
 

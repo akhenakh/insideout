@@ -42,7 +42,7 @@ func NewStorage(path string, logger log.Logger) (*Storage, func() error, error) 
 	// Creating DB
 	db, err := bbolt.Open(path, 0600, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("can't open database %w", err)
 	}
 
 	return &Storage{
@@ -91,7 +91,7 @@ func (s *Storage) LoadFeature(id uint32) (*insideout.Feature, error) {
 		return dec.Decode(fs)
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error loading feature %w", err)
 	}
 
 	loops := make([]*s2.Loop, len(fs.LoopsBytes))
