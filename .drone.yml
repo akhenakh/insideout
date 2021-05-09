@@ -7,7 +7,7 @@ steps:
     image: golang:1.16-alpine
     commands:
       - go mod vendor
-      - apk add musl-gcc make
+      - apk add gcc make
       - CC=musl-gcc make testnolint grpc_health_probe insided indexer-countries
 
   - name: proto-lint
