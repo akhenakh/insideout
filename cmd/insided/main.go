@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	// nolint: godot
 	// _ "net/http/pprof"
 
 	log "github.com/go-kit/kit/log"
@@ -54,6 +55,8 @@ var (
 	grpcPort        = flag.Int("grpcPort", 9200, "gRPC API port")
 	healthPort      = flag.Int("healthPort", 6666, "grpc health port")
 
+	dbURL = flag.String("dbURL", "localhost", "database URL use with postgis index only")
+
 	stopOnFirstFound = flag.Bool("stopOnFirstFound", false, "Stop in first feature found")
 	strategy         = flag.String("strategy", insideout.DBStrategy, "Strategy to use: insidetree|shapeindex|db|postgis")
 
@@ -77,7 +80,7 @@ func main() {
 	stdlog.SetOutput(log.NewStdlibAdapter(logger))
 
 	switch *strategy {
-	case insideout.InsideTreeStrategy, insideout.DBStrategy, insideout.ShapeIndexStrategy:
+	case insideout.InsideTreeStrategy, insideout.DBStrategy, insideout.ShapeIndexStrategy, insideout.PostgisIndexStrategy:
 	default:
 		level.Error(logger).Log("msg", "unknown strategy", "strategy", *strategy)
 
@@ -144,11 +147,12 @@ func main() {
 	})
 
 	// server
-	server, err := server.New(storage, logger, healthServer,
+	server, err := server.New(ctx, storage, logger, healthServer,
 		server.Options{
 			StopOnFirstFound: *stopOnFirstFound,
 			CacheCount:       *cacheCount,
 			Strategy:         *strategy,
+			DBURL:            *dbURL,
 		})
 	if err != nil {
 		level.Error(logger).Log("msg", "can't get a working server", "error", err)
@@ -162,8 +166,8 @@ func main() {
 	g.Go(func() error {
 		httpMetricsServer = &http.Server{
 			Addr:         fmt.Sprintf(":%d", *httpMetricsPort),
-			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 10 * time.Second,
+			ReadTimeout:  30 * time.Second,
+			WriteTimeout: 30 * time.Second, // keep a long timeout for pprof
 		}
 		level.Info(logger).Log("msg", fmt.Sprintf("HTTP Metrics server listening at :%d", *httpMetricsPort))
 

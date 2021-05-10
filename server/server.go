@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 
 	"github.com/dgraph-io/ristretto"
@@ -21,6 +22,7 @@ import (
 	"github.com/akhenakh/insideout"
 	"github.com/akhenakh/insideout/gen/go/insidesvc/v1"
 	"github.com/akhenakh/insideout/index/dbindex"
+	"github.com/akhenakh/insideout/index/postgis"
 	"github.com/akhenakh/insideout/index/shapeindex"
 	"github.com/akhenakh/insideout/index/treeindex"
 )
@@ -58,10 +60,11 @@ type Options struct {
 	StopOnFirstFound bool
 	CacheCount       int
 	Strategy         string
+	DBURL            string
 }
 
 // New returns a Server.
-func New(storage insideout.Store, logger log.Logger, healthServer *health.Server,
+func New(ctx context.Context, storage insideout.Store, logger log.Logger, healthServer *health.Server,
 	opts Options) (*Server, error) {
 	logger = log.With(logger, "component", "server")
 
@@ -92,6 +95,15 @@ func New(storage insideout.Store, logger log.Logger, healthServer *health.Server
 		idx = shapeidx
 	case insideout.DBStrategy:
 		dbidx := dbindex.New(storage, dbindex.Options{StopOnInsideFound: opts.StopOnFirstFound})
+		idx = dbidx
+
+	case insideout.PostgisIndexStrategy:
+		dbidx, err := postgis.New(ctx, logger, *&opts.DBURL)
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to read storage", "error", err, "strategy", opts.Strategy)
+			os.Exit(2)
+		}
+
 		idx = dbidx
 	}
 
@@ -171,38 +183,42 @@ func (s *Server) Within(
 	var fresps []*insidesvc.FeatureResponse
 
 	for _, fid := range idxResp.IDsInside {
-		f, err := s.feature(fid.ID)
-		if err != nil {
-			return nil, err
-		}
+		var feature *insidesvc.Feature
 
-		level.Debug(s.logger).Log("msg", "Found inside feature",
-			"fid", fid.ID,
-			"properties", f.Properties,
-			"loop #", fid.Pos)
-
-		feature := &insidesvc.Feature{}
-
-		if !req.RemoveGeometries {
-			l := f.Loops[fid.Pos]
-			feature.Geometry = &insidesvc.Geometry{
-				Type:        insidesvc.Geometry_TYPE_POLYGON,
-				Coordinates: insideout.CoordinatesFromLoops(l),
+		if !req.RemoveFeature {
+			f, err := s.feature(fid.ID)
+			if err != nil {
+				return nil, err
 			}
-		}
 
-		// TODO: filter properties
-		prop, err := insideout.PropertiesToValues(f)
-		if err != nil {
-			return nil, fmt.Errorf("can't transfor property to value: %w", err)
-		}
+			level.Debug(s.logger).Log("msg", "Found inside feature",
+				"fid", fid.ID,
+				"properties", f.Properties,
+				"loop #", fid.Pos)
 
-		feature.Properties = prop
-		feature.Properties[insidesvc.LoopIndexProperty] = &structpb.Value{
-			Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.Pos)},
-		}
-		feature.Properties[insidesvc.FeatureIDProperty] = &structpb.Value{
-			Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.ID)},
+			feature = &insidesvc.Feature{}
+
+			if !req.RemoveGeometries {
+				l := f.Loops[fid.Pos]
+				feature.Geometry = &insidesvc.Geometry{
+					Type:        insidesvc.Geometry_TYPE_POLYGON,
+					Coordinates: insideout.CoordinatesFromLoops(l),
+				}
+			}
+
+			// TODO: filter properties
+			prop, err := insideout.PropertiesToValues(f)
+			if err != nil {
+				return nil, fmt.Errorf("can't transfor property to value: %w", err)
+			}
+
+			feature.Properties = prop
+			feature.Properties[insidesvc.LoopIndexProperty] = &structpb.Value{
+				Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.Pos)},
+			}
+			feature.Properties[insidesvc.FeatureIDProperty] = &structpb.Value{
+				Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.ID)},
+			}
 		}
 
 		fresp := &insidesvc.FeatureResponse{
@@ -215,46 +231,49 @@ func (s *Server) Within(
 	p := s2.PointFromLatLng(s2.LatLngFromDegrees(req.Lat, req.Lng))
 
 	for _, fid := range idxResp.IDsMayBeInside {
-		f, err := s.feature(fid.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		level.Debug(s.logger).Log("msg", "Found maybe inside feature",
-			"fid", fid.ID,
-			"properties", f.Properties,
-			"loop #", fid.Pos)
-
-		l := f.Loops[fid.Pos]
-		if !l.ContainsPoint(p) {
-			continue
-		}
-
-		level.Debug(s.logger).Log("msg", "Found maybe inside feature PIP valid",
-			"fid", fid.ID,
-			"properties", f.Properties,
-			"loop #", fid.Pos)
-
-		feature := &insidesvc.Feature{}
-
-		if !req.RemoveGeometries {
-			feature.Geometry = &insidesvc.Geometry{
-				Type:        insidesvc.Geometry_TYPE_POLYGON,
-				Coordinates: insideout.CoordinatesFromLoops(l),
+		var feature *insidesvc.Feature
+		if !req.RemoveFeature {
+			f, err := s.feature(fid.ID)
+			if err != nil {
+				return nil, err
 			}
-		}
 
-		prop, err := insideout.PropertiesToValues(f)
-		if err != nil {
-			return nil, err
-		}
+			level.Debug(s.logger).Log("msg", "Found maybe inside feature",
+				"fid", fid.ID,
+				"properties", f.Properties,
+				"loop #", fid.Pos)
 
-		feature.Properties = prop
-		feature.Properties[insidesvc.LoopIndexProperty] = &structpb.Value{
-			Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.Pos)},
-		}
-		feature.Properties[insidesvc.FeatureIDProperty] = &structpb.Value{
-			Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.ID)},
+			l := f.Loops[fid.Pos]
+			if !l.ContainsPoint(p) {
+				continue
+			}
+
+			level.Debug(s.logger).Log("msg", "Found maybe inside feature PIP valid",
+				"fid", fid.ID,
+				"properties", f.Properties,
+				"loop #", fid.Pos)
+
+			feature = &insidesvc.Feature{}
+
+			if !req.RemoveGeometries {
+				feature.Geometry = &insidesvc.Geometry{
+					Type:        insidesvc.Geometry_TYPE_POLYGON,
+					Coordinates: insideout.CoordinatesFromLoops(l),
+				}
+			}
+
+			prop, err := insideout.PropertiesToValues(f)
+			if err != nil {
+				return nil, err
+			}
+
+			feature.Properties = prop
+			feature.Properties[insidesvc.LoopIndexProperty] = &structpb.Value{
+				Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.Pos)},
+			}
+			feature.Properties[insidesvc.FeatureIDProperty] = &structpb.Value{
+				Kind: &structpb.Value_NumberValue{NumberValue: float64(fid.ID)},
+			}
 		}
 
 		fresp := &insidesvc.FeatureResponse{
@@ -266,6 +285,10 @@ func (s *Server) Within(
 
 	// sort features by "admin_level"
 	sort.SliceStable(fresps, func(i, j int) bool {
+		if fresps[i].Feature == nil {
+			return false
+		}
+
 		return fresps[i].Feature.Properties["admin_level"].GetNumberValue() <
 			fresps[j].Feature.Properties["admin_level"].GetNumberValue()
 	})
@@ -368,7 +391,7 @@ func (s *Server) IndexStab(lat, lng float64) ([]*insideout.Feature, error) {
 
 		l := f.Loops[fid.Pos]
 		if l.ContainsPoint(s2.PointFromLatLng(s2.LatLngFromDegrees(lat, lng))) {
-			level.Debug(s.logger).Log("msg", "Found outside + PIP feature",
+			level.Warn(s.logger).Log("msg", "Found outside + PIP feature",
 				"fid", fid.ID,
 				"properties", f.Properties,
 				"loop #", fid.Pos)

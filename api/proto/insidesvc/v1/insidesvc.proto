@@ -20,8 +20,8 @@ message WithinRequest {
     // saving extra bytes
     bool remove_geometries = 3;
 
-    // comma separated list of property so returns to save extra bytes, leave empty for all
-    string select_properties = 4;
+    // remove the whole feature reponse
+    bool remove_feature = 4;
 }
 
 message WithinResponse {

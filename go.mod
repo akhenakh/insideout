@@ -15,6 +15,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/jackc/pgx/v4 v4.11.0 // indirect
 	github.com/namsral/flag v1.7.4-pre
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pkg/errors v0.9.1

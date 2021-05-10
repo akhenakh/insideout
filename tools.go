@@ -24,9 +24,10 @@ const (
 	TilesURLPrefix byte = 't'
 	TilesPrefix    byte = 'T'
 
-	InsideTreeStrategy = "insidetree"
-	DBStrategy         = "db"
-	ShapeIndexStrategy = "shapeindex"
+	InsideTreeStrategy   = "insidetree"
+	DBStrategy           = "db"
+	ShapeIndexStrategy   = "shapeindex"
+	PostgisIndexStrategy = "postgis"
 )
 
 // GeoJSONCoverCellUnion generates an s2 cover normalized

@@ -27,13 +27,15 @@ import (
 const appName = "loadtester"
 
 var (
-	logLevel     = flag.String("logLevel", "INFO", "DEBUG|INFO|WARN|ERROR")
-	testDuration = flag.Duration("testDuration", 0, "performs the test for duration, 0 = infinite")
-	insideURI    = flag.String("insideURI", "localhost:9200", "insided grpc URI")
-	latMin       = flag.Float64("latMin", 49.10, "Lat min")
-	lngMin       = flag.Float64("lngMin", -1.10, "Lng min")
-	latMax       = flag.Float64("latMax", 46.63, "Lat max")
-	lngMax       = flag.Float64("lngMax", 5.5, "Lng max")
+	logLevel      = flag.String("logLevel", "INFO", "DEBUG|INFO|WARN|ERROR")
+	testDuration  = flag.Duration("testDuration", 0, "performs the test for duration, 0 = infinite")
+	insideURI     = flag.String("insideURI", "localhost:9200", "insided grpc URI")
+	latMin        = flag.Float64("latMin", 49.10, "Lat min")
+	lngMin        = flag.Float64("lngMin", -1.10, "Lng min")
+	latMax        = flag.Float64("latMax", 46.63, "Lat max")
+	lngMax        = flag.Float64("lngMax", 5.5, "Lng max")
+	removeGeo     = flag.Bool("removeGeometry", true, "do not return geometry in response")
+	removeFeature = flag.Bool("removeFeature", true, "do not return feature in response")
 )
 
 func main() {
@@ -93,7 +95,8 @@ func main() {
 		req := &insidesvc.WithinRequest{
 			Lat:              *latMin,
 			Lng:              *latMax,
-			RemoveGeometries: true,
+			RemoveGeometries: *removeGeo,
+			RemoveFeature:    *removeFeature,
 		}
 
 		for {
@@ -122,7 +125,6 @@ func main() {
 				level.Debug(logger).Log(
 					"msg", "found feature",
 					"fid", fresp.Id,
-					"properties", fresp.Feature.Properties,
 					"lat", lat,
 					"lng", lng,
 				)
