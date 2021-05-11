@@ -26,3 +26,8 @@ inside.db/
 /cmd/indexer/indexer
 /cmd/indexer/inside.db
 vendor/
+/cmd/osmindexer/inside.db
+/cmd/osmindexer/osmindexer
+/cmd/osminsided/osminsided
+/cmd/insided/inside.db
+/cmd/osmloadtester/osmloadtester

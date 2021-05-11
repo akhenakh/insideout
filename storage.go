@@ -20,7 +20,16 @@ type Store interface {
 		warningCellsCover int, fileName, version string) error
 }
 
-// FeatureStorage on disk storage of the feature
+type OSMStore interface {
+	LoadFeature(id int64) (*Feature, error)
+	LoadFeaturesCells(add func([]s2.CellUnion, []s2.CellUnion, int64)) error
+	LoadCellStorage(id int64) (*CellsStorage, error)
+	LoadIndexInfos() (*IndexInfos, error)
+	Index(fc geojson.FeatureCollection, icoverer *s2.RegionCoverer, ocoverer *s2.RegionCoverer,
+		warningCellsCover int, fileName, version string) error
+}
+
+// FeatureStorage on disk storage of the feature.
 type FeatureStorage struct {
 	Properties map[string]interface{}
 
@@ -30,7 +39,7 @@ type FeatureStorage struct {
 }
 
 // CellsStorage are used to store indexed cells
-// for use with the treeindex
+// for use with the treeindex.
 type CellsStorage struct {
 	// Cells inside cover
 	CellsIn []s2.CellUnion
@@ -39,7 +48,7 @@ type CellsStorage struct {
 	CellsOut []s2.CellUnion
 }
 
-// IndexInfos used to store information about the index in DB
+// IndexInfos used to store information about the index in DB.
 type IndexInfos struct {
 	Filename       string
 	IndexTime      time.Time
@@ -48,7 +57,7 @@ type IndexInfos struct {
 	MinCoverLevel  int
 }
 
-// MapInfos used to store information about the map if any in DB
+// MapInfos used to store information about the map if any in DB.
 type MapInfos struct {
 	CenterLat, CenterLng float64
 	MaxZoom              int

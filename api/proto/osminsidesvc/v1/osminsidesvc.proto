@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package osminsidesvc.v1;
+
+option go_package = "github.com/akhenakh/insideout/gen/go/osminsidesvc/v1;osminsidesvc";
+
+service OSMInsideService {
+    //  Stab returns features containing lat lng
+    rpc Within(WithinRequest) returns (WithinResponse) {}
+}
+
+enum AdminLevel {
+    ADMIN_LEVEL_UNSPECIFIED = 0;
+    ADMIN_LEVEL_1 = 1;
+    ADMIN_LEVEL_2 = 2;
+    ADMIN_LEVEL_3 = 3;
+    ADMIN_LEVEL_4 = 4;
+    ADMIN_LEVEL_5 = 5;
+    ADMIN_LEVEL_6 = 6;
+	ADMIN_LEVEL_7 = 7;
+	ADMIN_LEVEL_8 = 8;
+  }
+
+message WithinRequest {
+    double lat = 1;
+    double lng = 2;
+	AdminLevel admin_level = 3;
+}
+
+message WithinResponse {
+    double lat = 1;
+    double lng = 2;
+    repeated int64 fids = 3;
+}

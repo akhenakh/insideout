@@ -220,11 +220,29 @@ func FeatureKey(id uint32) []byte {
 	return k
 }
 
+// FeatureKey returns the key for the id
+func OSMFeatureKey(id int64) []byte {
+	k := make([]byte, 1+8)
+	k[0] = featurePrefix
+	binary.BigEndian.PutUint64(k[1:], uint64(id))
+
+	return k
+}
+
 // CellKey returns the key for the cell id
 func CellKey(id uint32) []byte {
 	k := make([]byte, 1+4)
 	k[0] = cellPrefix
 	binary.BigEndian.PutUint32(k[1:], id)
+
+	return k
+}
+
+// OSMCellKey returns the key for the cell id
+func OSMCellKey(id int64) []byte {
+	k := make([]byte, 1+8)
+	k[0] = cellPrefix
+	binary.BigEndian.PutUint64(k[1:], uint64(id))
 
 	return k
 }

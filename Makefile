@@ -13,9 +13,9 @@ $(warning Found vendor directory setting go build flag to -mod vendor)
 	BUILD_FLAGS += -mod vendor
 endif
 
-targets = insided indexer insidecli loadtester
+targets = insided indexer insidecli loadtester osmindexer osminsided
 
-.PHONY: all lint test insided insidecli indexer clean loadtester testnolint
+.PHONY: all lint test insided insidecli indexer clean loadtester testnolint osmindexer osminsided
 
 all: test $(targets)
 
@@ -31,11 +31,17 @@ lint:
 insided:
 	cd cmd/insided && go build $(BUILD_FLAGS)
 
+osminsided:
+	cd cmd/osminsided && go build $(BUILD_FLAGS)
+
 insidecli:
 	cd cmd/insidecli && go build $(BUILD_FLAGS)
 
 indexer:
 	cd cmd/indexer && go build $(BUILD_FLAGS)
+
+osmindexer:
+	cd cmd/osmindexer && go build $(BUILD_FLAGS)
 
 loadtester:
 	cd cmd/loadtester && go build $(BUILD_FLAGS)

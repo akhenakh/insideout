@@ -232,27 +232,28 @@ func (s *Server) Within(
 
 	for _, fid := range idxResp.IDsMayBeInside {
 		var feature *insidesvc.Feature
+
+		f, err := s.feature(fid.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		level.Debug(s.logger).Log("msg", "Found maybe inside feature",
+			"fid", fid.ID,
+			"properties", f.Properties,
+			"loop #", fid.Pos)
+
+		l := f.Loops[fid.Pos]
+		if !l.ContainsPoint(p) {
+			continue
+		}
+
+		level.Debug(s.logger).Log("msg", "Found maybe inside feature PIP valid",
+			"fid", fid.ID,
+			"properties", f.Properties,
+			"loop #", fid.Pos)
+
 		if !req.RemoveFeature {
-			f, err := s.feature(fid.ID)
-			if err != nil {
-				return nil, err
-			}
-
-			level.Debug(s.logger).Log("msg", "Found maybe inside feature",
-				"fid", fid.ID,
-				"properties", f.Properties,
-				"loop #", fid.Pos)
-
-			l := f.Loops[fid.Pos]
-			if !l.ContainsPoint(p) {
-				continue
-			}
-
-			level.Debug(s.logger).Log("msg", "Found maybe inside feature PIP valid",
-				"fid", fid.ID,
-				"properties", f.Properties,
-				"loop #", fid.Pos)
-
 			feature = &insidesvc.Feature{}
 
 			if !req.RemoveGeometries {
