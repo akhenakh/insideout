@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/akhenakh/insidetree v0.0.0-20200117162430-1aba251a8a6a
+	github.com/akrylysov/pogreb v0.10.1 // indirect
 	github.com/dgraph-io/ristretto v0.0.3
 	github.com/felixge/httpsnoop v1.0.2 // indirect
 	github.com/fxamacker/cbor v1.5.1
