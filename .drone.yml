@@ -8,7 +8,7 @@ platform:
 
 steps:
   - name: build
-    image: golang:1.16-alpine
+    image: golang:1.17
     commands:
       - go mod vendor
       - apk add gcc musl-dev make git
